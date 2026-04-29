@@ -14,7 +14,7 @@ ENV PYTHONUNBUFFERED=1
 
 # ── 系统依赖：ffmpeg + OpenCV 运行时 ──
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg libglib2.0-0 libgl1-mesa-glx curl \
+    ffmpeg libglib2.0-0 libgl1 curl \
     && rm -rf /var/lib/apt/lists/*
 
 # ── go2rtc 二进制（RTSP 流代理 + WebRTC/MSE 播放器）──
