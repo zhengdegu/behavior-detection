@@ -48,7 +48,11 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
 ### 拉取预构建镜像
 
 ```bash
+# CPU 版（推荐，体积小）
 docker pull ghcr.io/zhengdegu/behavior-detection:latest
+
+# GPU 版（CUDA 12.4，需要 nvidia-container-toolkit）
+docker pull ghcr.io/zhengdegu/behavior-detection:gpu
 ```
 
 使用 docker-compose 运行预构建镜像：
@@ -74,7 +78,7 @@ services:
 # docker-compose.yml
 services:
   behavior-detection:
-    image: ghcr.io/zhengdegu/behavior-detection:latest
+    image: ghcr.io/zhengdegu/behavior-detection:gpu
     ports:
       - "8000:8000"
     volumes:
