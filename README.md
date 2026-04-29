@@ -29,12 +29,21 @@
 # 克隆仓库
 git clone https://github.com/zhengdegu/behavior-detection.git
 cd behavior-detection
-
-# 启动（需要 NVIDIA GPU + nvidia-container-toolkit）
-docker compose up -d --build
-
-# 访问 http://localhost:8000
 ```
+
+**无 GPU（CPU 模式）：**
+
+```bash
+docker compose up -d --build
+```
+
+**有 NVIDIA GPU：**
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+```
+
+访问 `http://localhost:8000`
 
 ### 拉取预构建镜像
 
@@ -43,6 +52,23 @@ docker pull ghcr.io/zhengdegu/behavior-detection:latest
 ```
 
 使用 docker-compose 运行预构建镜像：
+
+**无 GPU：**
+
+```yaml
+# docker-compose.yml
+services:
+  behavior-detection:
+    image: ghcr.io/zhengdegu/behavior-detection:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./configs:/app/configs
+    restart: unless-stopped
+```
+
+**有 NVIDIA GPU：**
 
 ```yaml
 # docker-compose.yml
@@ -67,6 +93,8 @@ services:
 ```bash
 docker compose up -d
 ```
+
+> **说明：** CPU 模式下推理速度较慢，建议降低检测 FPS（如设为 1-2）以减少 CPU 负载。GPU 模式需要安装 [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)。
 
 ### 本地开发
 

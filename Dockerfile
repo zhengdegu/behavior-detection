@@ -26,9 +26,13 @@ ADD --chmod=755 \
 
 WORKDIR /app
 
-# ── PyTorch GPU（可选，CPU 版去掉 --index-url 行）──
-RUN pip install --no-cache-dir \
-    torch torchvision --index-url https://download.pytorch.org/whl/cu124
+# ── PyTorch（通过 BUILD_TYPE 参数选择 GPU 或 CPU 版本）──
+ARG BUILD_TYPE=cpu
+RUN if [ "$BUILD_TYPE" = "gpu" ]; then \
+      pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cu124; \
+    else \
+      pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu; \
+    fi
 
 # ── Python 依赖 ──
 COPY backend/requirements.txt .
