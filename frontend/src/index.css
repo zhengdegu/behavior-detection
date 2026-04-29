@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #020617;
+  --color-bg2: #0F172A;
+  --color-card: #1E293B;
+  --color-hover: #334155;
+  --color-t1: #F8FAFC;
+  --color-t2: #94A3B8;
+  --color-t3: #64748B;
+  --color-green: #22C55E;
+  --color-red: #EF4444;
+  --color-orange: #F97316;
+  --color-blue: #3B82F6;
+  --color-border: #1E293B;
+  --radius-base: 8px;
+  --font-sans: 'Inter', sans-serif;
+  --font-mono: 'Fira Code', monospace;
+}
+
+/* Base styles */
+html {
+  background-color: var(--color-bg);
+  color: var(--color-t1);
+}
+
+body {
+  font-family: var(--font-sans);
+  min-height: 100vh;
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar styling for dark theme */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg2);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-hover);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-t3);
+}
+
+/* Alert pulse animation */
+@keyframes alert-pulse {
+  0%, 100% { border-color: var(--color-red); }
+  50% { border-color: transparent; }
+}
+
+/* Status dot pulse animation */
+@keyframes dot-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}

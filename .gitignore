@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+*.egg
+
+# Node
+node_modules/
+frontend/dist/
+
+# Data (runtime generated)
+backend/data/app.db
+backend/data/app.db-shm
+backend/data/app.db-wal
+backend/data/events/
+backend/data/uploads/
+backend/data/outputs/
+backend/data/go2rtc.exe
+backend/data/go2rtc
+backend/data/go2rtc.yaml
+backend/data/models/*.pt
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+*.log.gz
+
+# Build
+*.tsbuildinfo

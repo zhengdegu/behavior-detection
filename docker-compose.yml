@@ -1,0 +1,18 @@
+services:
+  behavior-detection:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"    # FastAPI（前端 + 后端 + go2rtc 代理）
+    volumes:
+      - ./backend/data:/app/data          # 数据库、模型、事件截图、视频
+      - ./backend/configs:/app/configs    # YAML 配置（仅首次迁移用）
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
