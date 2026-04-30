@@ -824,47 +824,10 @@ async def go2rtc_status():
 
 # ── go2rtc 反向代理 ──
 
-@app.api_route("/go2rtc/stream.html", methods=["GET"])
-async def go2rtc_stream_html(request: Request):
-    """代理 go2rtc stream.html 页面"""
-    async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.get(
-                f"{_GO2RTC_BASE_URL}/stream.html",
-                params=dict(request.query_params),
-                timeout=10.0,
-            )
-            return Response(
-                content=resp.content,
-                status_code=resp.status_code,
-                media_type=resp.headers.get("content-type", "text/html"),
-            )
-        except httpx.ConnectError:
-            return JSONResponse({"error": "go2rtc 未运行"}, status_code=503)
-
-
-@app.api_route("/go2rtc/video-rtc.js", methods=["GET"])
-async def go2rtc_video_rtc_js(request: Request):
-    """代理 go2rtc video-rtc.js 脚本"""
-    async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.get(
-                f"{_GO2RTC_BASE_URL}/video-rtc.js",
-                timeout=10.0,
-            )
-            return Response(
-                content=resp.content,
-                status_code=resp.status_code,
-                media_type=resp.headers.get("content-type", "application/javascript"),
-            )
-        except httpx.ConnectError:
-            return JSONResponse({"error": "go2rtc 未运行"}, status_code=503)
-
-
-@app.api_route("/go2rtc/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
-async def go2rtc_api_proxy(path: str, request: Request):
-    """HTTP 反向代理到 go2rtc REST API"""
-    target_url = f"{_GO2RTC_BASE_URL}/api/{path}"
+@app.api_route("/go2rtc/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
+async def go2rtc_http_proxy(path: str, request: Request):
+    """HTTP 反向代理到 go2rtc（静态资源 + REST API）"""
+    target_url = f"{_GO2RTC_BASE_URL}/{path}"
     async with httpx.AsyncClient() as client:
         try:
             body = await request.body()
@@ -980,5 +943,17 @@ async def ws_events(websocket: WebSocket):
 
 # ── 前端静态资源托管 ──
 # 必须在所有 API 路由和 WebSocket 端点之后挂载，确保 API 路由优先级更高
+# 使用自定义包装器过滤 WebSocket 请求，避免 StaticFiles 收到 WS 协议报错
 if FRONTEND_DIR.exists():
-    app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
+    _frontend_static = StaticFiles(directory=str(FRONTEND_DIR), html=True)
+
+    async def _frontend_app(scope, receive, send):
+        if scope["type"] != "http":
+            # WebSocket 等非 HTTP 请求直接返回 404，不传给 StaticFiles
+            from starlette.responses import Response as _Resp
+            response = _Resp(status_code=404)
+            await response(scope, receive, send)
+            return
+        await _frontend_static(scope, receive, send)
+
+    app.mount("/", _frontend_app, name="frontend")
