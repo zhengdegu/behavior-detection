@@ -2,6 +2,8 @@
 
 Real-time video behavior detection system supporting **crowd detection**, **fight detection**, and **fall detection**. Frontend and backend are packaged into a single Docker image with MQTT event push to third-party systems.
 
+![Playground](docs/image/Playground.png)
+
 ## Features
 
 | Feature | Description |
