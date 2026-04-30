@@ -1,5 +1,5 @@
 """
-异常规则基类 — confirm_frames + cooldown 防抖机制
+Anomaly rule base class — confirm_frames + cooldown debounce mechanism
 """
 
 import time
@@ -8,7 +8,7 @@ from ..detection import Detection
 
 
 class BaseAnomalyRule:
-    """异常规则基类"""
+    """Anomaly rule base class"""
 
     def __init__(self, rule_name: str, confirm_frames: int = 5,
                  cooldown: float = 60.0):
@@ -20,7 +20,7 @@ class BaseAnomalyRule:
 
     def _check_confirm_and_cooldown(self, key: str, condition: bool,
                                      now: float = 0.0) -> bool:
-        """通用的确认帧 + 冷却检查"""
+        """Generic confirm frames + cooldown check"""
         if now <= 0:
             now = time.time()
         if condition:

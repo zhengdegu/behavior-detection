@@ -1,5 +1,5 @@
 """
-数据库层 — SQLite 连接管理 + Repository 模式数据访问
+Database layer — SQLite connection management + Repository pattern data access
 """
 
 import json
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 class DatabaseManager:
-    """SQLite 数据库管理器，提供线程安全的连接"""
+    """SQLite database manager providing thread-safe connections"""
 
     def __init__(self, db_path: str = "data/app.db"):
         self.db_path = db_path
@@ -28,31 +28,31 @@ class DatabaseManager:
         self._connections: List[sqlite3.Connection] = []
         self._lock = threading.Lock()
 
-        # 创建数据目录
+        # Create data directory
         db_dir = os.path.dirname(db_path)
         if db_dir:
             try:
                 os.makedirs(db_dir, exist_ok=True)
             except OSError as e:
                 raise RuntimeError(
-                    f"无法创建数据库目录 '{db_dir}': {e}"
+                    f"Unable to create database directory '{db_dir}': {e}"
                 ) from e
 
-        # 验证路径可写
+        # Verify path is writable
         try:
             conn = sqlite3.connect(db_path)
             conn.execute("PRAGMA journal_mode=WAL")
             conn.close()
         except sqlite3.OperationalError as e:
             raise RuntimeError(
-                f"数据库路径不可写 '{db_path}': {e}"
+                f"Database path not writable '{db_path}': {e}"
             ) from e
 
-        # 初始化表结构
+        # Initialize table schema
         self._init_tables()
 
     def get_connection(self) -> sqlite3.Connection:
-        """获取当前线程的数据库连接（线程本地存储）"""
+        """Get database connection for current thread (thread-local storage)"""
         conn = getattr(self._local, "connection", None)
         if conn is None:
             try:
@@ -64,12 +64,12 @@ class DatabaseManager:
                     self._connections.append(conn)
             except sqlite3.OperationalError as e:
                 raise RuntimeError(
-                    f"无法连接数据库 '{self.db_path}': {e}"
+                    f"Unable to connect to database '{self.db_path}': {e}"
                 ) from e
         return conn
 
     def close(self):
-        """关闭所有连接"""
+        """Close all connections"""
         with self._lock:
             for conn in self._connections:
                 try:
@@ -79,7 +79,7 @@ class DatabaseManager:
             self._connections.clear()
 
     def _init_tables(self):
-        """创建表结构（如不存在）"""
+        """Create table schema (if not exists)"""
         conn = self.get_connection()
         conn.executescript(
             """
@@ -134,13 +134,13 @@ class DatabaseManager:
             """
         )
 
-        # 为已有 cameras 表添加 mqtt_publish_config 列（兼容已有数据库）
+        # Add mqtt_publish_config column to existing cameras table (backward compatible)
         try:
             conn.execute(
                 "ALTER TABLE cameras ADD COLUMN mqtt_publish_config TEXT NOT NULL DEFAULT '{}'"
             )
         except Exception:
-            pass  # 列已存在，忽略
+            pass  # Column already exists, ignore
 
         conn.commit()
 
@@ -149,13 +149,13 @@ class DatabaseManager:
 
 
 class CameraRepository:
-    """摄像头配置数据访问"""
+    """Camera configuration data access"""
 
     def __init__(self, db: DatabaseManager):
         self.db = db
 
     def get_all(self) -> List[CameraConfig]:
-        """获取所有摄像头配置"""
+        """Get all camera configurations"""
         conn = self.db.get_connection()
         rows = conn.execute(
             "SELECT id, name, url, detect_config, roi, rules_config, "
@@ -185,12 +185,12 @@ class CameraRepository:
                 )
             except (json.JSONDecodeError, Exception) as e:
                 logger.warning(
-                    f"摄像头配置反序列化失败 (id={row['id']}): {e}，跳过该记录"
+                    f"Camera config deserialization failed (id={row['id']}): {e}, skipping record"
                 )
         return configs
 
     def get_by_id(self, camera_id: str) -> Optional[CameraConfig]:
-        """按 ID 获取单个摄像头配置"""
+        """Get single camera configuration by ID"""
         conn = self.db.get_connection()
         row = conn.execute(
             "SELECT id, name, url, detect_config, roi, rules_config, "
@@ -220,12 +220,12 @@ class CameraRepository:
             )
         except (json.JSONDecodeError, Exception) as e:
             logger.warning(
-                f"摄像头配置反序列化失败 (id={row['id']}): {e}"
+                f"Camera config deserialization failed (id={row['id']}): {e}"
             )
             return None
 
     def create(self, config: CameraConfig) -> None:
-        """创建摄像头配置"""
+        """Create camera configuration"""
         conn = self.db.get_connection()
         data = config.model_dump()
         now = datetime.now(timezone.utc).isoformat()
@@ -248,7 +248,7 @@ class CameraRepository:
         conn.commit()
 
     def update(self, config: CameraConfig) -> None:
-        """更新摄像头配置"""
+        """Update camera configuration"""
         conn = self.db.get_connection()
         data = config.model_dump()
         now = datetime.now(timezone.utc).isoformat()
@@ -270,13 +270,13 @@ class CameraRepository:
         conn.commit()
 
     def delete(self, camera_id: str) -> None:
-        """删除摄像头配置"""
+        """Delete camera configuration"""
         conn = self.db.get_connection()
         conn.execute("DELETE FROM cameras WHERE id = ?", (camera_id,))
         conn.commit()
 
     def count(self) -> int:
-        """返回摄像头配置总数"""
+        """Return total camera configuration count"""
         conn = self.db.get_connection()
         row = conn.execute("SELECT COUNT(*) FROM cameras").fetchone()
         return row[0]
@@ -286,7 +286,7 @@ class CameraRepository:
 
 
 class ModelRepository:
-    """模型配置数据访问"""
+    """Model configuration data access"""
 
     _DEFAULT_ID = "default"
 
@@ -294,7 +294,7 @@ class ModelRepository:
         self.db = db
 
     def get(self) -> ModelConfig:
-        """获取模型配置，不存在则插入默认值并返回"""
+        """Get model configuration, insert default values if not exists"""
         conn = self.db.get_connection()
         row = conn.execute(
             "SELECT detector_path, confidence, pose_path, pose_confidence, "
@@ -311,13 +311,13 @@ class ModelRepository:
                 tracker_config=row["tracker_config"],
             )
 
-        # 不存在 → 插入默认值
+        # Not exists → insert default values
         default = ModelConfig()
         self.save(default)
         return default
 
     def save(self, config: ModelConfig) -> None:
-        """保存模型配置（INSERT OR REPLACE）"""
+        """Save model configuration (INSERT OR REPLACE)"""
         conn = self.db.get_connection()
         now = datetime.now(timezone.utc).isoformat()
         conn.execute(
@@ -341,7 +341,7 @@ class ModelRepository:
 
 
 class MQTTConfigRepository:
-    """MQTT 全局配置数据访问"""
+    """MQTT global configuration data access"""
 
     _DEFAULT_ID = "default"
 
@@ -349,7 +349,7 @@ class MQTTConfigRepository:
         self.db = db
 
     def get(self) -> MQTTConfig:
-        """获取 MQTT 配置，不存在则返回默认值"""
+        """Get MQTT configuration, return default values if not exists"""
         conn = self.db.get_connection()
         row = conn.execute(
             "SELECT host, port, username, password, topic, enabled, "
@@ -371,7 +371,7 @@ class MQTTConfigRepository:
         return MQTTConfig()
 
     def save(self, config: MQTTConfig) -> None:
-        """保存 MQTT 配置（INSERT OR REPLACE）"""
+        """Save MQTT configuration (INSERT OR REPLACE)"""
         conn = self.db.get_connection()
         now = datetime.now(timezone.utc).isoformat()
         conn.execute(
@@ -397,16 +397,16 @@ class MQTTConfigRepository:
 
 
 class TaskRepository:
-    """视频分析任务数据访问"""
+    """Video analysis task data access"""
 
-    # 需要 JSON 序列化/反序列化的字段
+    # Fields requiring JSON serialization/deserialization
     _JSON_FIELDS = ("events", "stats", "roi", "rules")
 
     def __init__(self, db: DatabaseManager):
         self.db = db
 
     def _row_to_dict(self, row: sqlite3.Row) -> dict:
-        """将数据库行转换为 dict，反序列化 JSON 字段"""
+        """Convert database row to dict, deserializing JSON fields"""
         d = dict(row)
         for field in self._JSON_FIELDS:
             val = d.get(field)
@@ -414,9 +414,9 @@ class TaskRepository:
                 try:
                     d[field] = json.loads(val)
                 except (json.JSONDecodeError, TypeError):
-                    logger.warning(f"任务字段 '{field}' JSON 反序列化失败，使用原始值")
+                    logger.warning(f"Task field '{field}' JSON deserialization failed, using raw value")
             else:
-                # events 和 roi 默认为空列表，stats 和 rules 默认为 None
+                # events and roi default to empty list, stats and rules default to None
                 if field in ("events", "roi"):
                     d[field] = []
                 else:
@@ -424,7 +424,7 @@ class TaskRepository:
         return d
 
     def get_all(self) -> List[dict]:
-        """获取所有任务"""
+        """Get all tasks"""
         conn = self.db.get_connection()
         rows = conn.execute(
             "SELECT id, filename, original_filename, status, file_size, "
@@ -434,7 +434,7 @@ class TaskRepository:
         return [self._row_to_dict(row) for row in rows]
 
     def get_by_id(self, task_id: str) -> Optional[dict]:
-        """按 ID 获取任务"""
+        """Get task by ID"""
         conn = self.db.get_connection()
         row = conn.execute(
             "SELECT id, filename, original_filename, status, file_size, "
@@ -448,7 +448,7 @@ class TaskRepository:
         return self._row_to_dict(row)
 
     def create(self, task: dict) -> None:
-        """创建任务记录"""
+        """Create task record"""
         conn = self.db.get_connection()
         conn.execute(
             "INSERT INTO analysis_tasks "
@@ -474,7 +474,7 @@ class TaskRepository:
         conn.commit()
 
     def update_status(self, task_id: str, status: str, progress: int) -> None:
-        """更新任务状态和进度"""
+        """Update task status and progress"""
         conn = self.db.get_connection()
         conn.execute(
             "UPDATE analysis_tasks SET status = ?, progress = ? WHERE id = ?",
@@ -489,7 +489,7 @@ class TaskRepository:
         stats: dict,
         output_video: str,
     ) -> None:
-        """更新任务分析结果"""
+        """Update task analysis results"""
         conn = self.db.get_connection()
         conn.execute(
             "UPDATE analysis_tasks SET events = ?, stats = ?, output_video = ? "
@@ -504,49 +504,49 @@ class TaskRepository:
         conn.commit()
 
     def delete(self, task_id: str) -> None:
-        """删除任务记录"""
+        """Delete task record"""
         conn = self.db.get_connection()
         conn.execute("DELETE FROM analysis_tasks WHERE id = ?", (task_id,))
         conn.commit()
 
 
-# ── YAML 迁移工具 ──
+# ── YAML Migration Tool ──
 
 
 def migrate_from_yaml(db: DatabaseManager, yaml_path: str = "configs/default.yaml") -> None:
     """
-    从 YAML 配置文件迁移数据到数据库。
-    仅在数据库为空时执行，跳过无效条目并记录警告。
+    Migrate data from YAML configuration file to database.
+    Only executes when database is empty, skips invalid entries and logs warnings.
     """
     camera_repo = CameraRepository(db)
     model_repo = ModelRepository(db)
 
-    # 检查数据库是否已有数据
+    # Check if database already has data
     conn = db.get_connection()
     camera_count = conn.execute("SELECT COUNT(*) FROM cameras").fetchone()[0]
     model_count = conn.execute("SELECT COUNT(*) FROM model_config").fetchone()[0]
 
     if camera_count > 0 or model_count > 0:
-        logger.info("数据库已有数据，跳过 YAML 迁移")
+        logger.info("Database already has data, skipping YAML migration")
         return
 
-    # 检查 YAML 文件是否存在
+    # Check if YAML file exists
     yaml_file = Path(yaml_path)
     if not yaml_file.exists():
-        logger.info(f"YAML 配置文件不存在: {yaml_path}，跳过迁移")
+        logger.info(f"YAML config file not found: {yaml_path}, skipping migration")
         return
 
-    # 读取 YAML 文件
+    # Read YAML file
     try:
         import yaml as yaml_lib
 
         with open(yaml_file, "r", encoding="utf-8") as f:
             config = yaml_lib.safe_load(f) or {}
     except Exception as e:
-        logger.warning(f"YAML 配置文件格式错误: {e}，跳过迁移")
+        logger.warning(f"YAML config file format error: {e}, skipping migration")
         return
 
-    # 迁移摄像头配置
+    # Migrate camera configurations
     cameras_data = config.get("cameras", [])
     migrated_cameras = 0
     for cam_data in cameras_data:
@@ -555,9 +555,9 @@ def migrate_from_yaml(db: DatabaseManager, yaml_path: str = "configs/default.yam
             camera_repo.create(cam_config)
             migrated_cameras += 1
         except Exception as e:
-            logger.warning(f"摄像头配置迁移失败: {e}，跳过该条目")
+            logger.warning(f"Camera config migration failed: {e}, skipping entry")
 
-    # 迁移模型配置
+    # Migrate model configuration
     model_migrated = False
     model_data = config.get("model")
     if model_data:
@@ -566,9 +566,9 @@ def migrate_from_yaml(db: DatabaseManager, yaml_path: str = "configs/default.yam
             model_repo.save(model_config)
             model_migrated = True
         except Exception as e:
-            logger.warning(f"模型配置迁移失败: {e}")
+            logger.warning(f"Model config migration failed: {e}")
 
     logger.info(
-        f"YAML 迁移完成: {migrated_cameras} 个摄像头配置, "
-        f"模型配置 {'已迁移' if model_migrated else '未迁移'}"
+        f"YAML migration complete: {migrated_cameras} camera configs, "
+        f"model config {'migrated' if model_migrated else 'not migrated'}"
     )

@@ -142,7 +142,7 @@ export default function Analyze() {
       await fetchTasks()
       setSelectedId(task.id)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : '上传失败')
+      setError(err instanceof Error ? err.message : 'Upload failed')
     } finally {
       setUploading(false)
       // Reset input so same file can be re-selected
@@ -160,7 +160,7 @@ export default function Analyze() {
       await startAnalysis(selectedId)
       await fetchTasks()
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : '启动分析失败')
+      setError(err instanceof Error ? err.message : 'Failed to start analysis')
     } finally {
       setStarting(false)
     }
@@ -281,10 +281,10 @@ export default function Analyze() {
           <div className="flex flex-col items-center justify-center h-full gap-4">
             <Video size={48} className="text-t3" strokeWidth={1.5} />
             <p className="text-t2 text-sm text-center">
-              上传视频文件进行离线行为分析
+              Upload a video file for offline behavior analysis
               <br />
               <span className="text-t3 text-xs">
-                支持检测聚集、打架、跌倒等异常行为
+                Supports detection of crowd gathering, fighting, falling, and other anomalies
               </span>
             </p>
             <label className="btn-upload-lg inline-flex items-center gap-1.5 px-5 py-2 rounded-lg bg-green text-bg text-xs font-semibold cursor-pointer hover:opacity-85 transition-opacity duration-150">
@@ -338,7 +338,7 @@ export default function Analyze() {
             <div className="text-center">
               <p className="text-t1 text-sm font-medium">{selected.filename}</p>
               <p className="text-t3 text-xs mt-1">
-                分析进行中...{' '}
+                Analyzing...{' '}
                 {selected.progress != null && (
                   <span className="font-mono text-blue">{selected.progress}%</span>
                 )}
@@ -503,7 +503,7 @@ export default function Analyze() {
           /* Failed or unknown status */
           <div className="flex flex-col items-center justify-center h-full gap-3">
             <AlertTriangle size={40} className="text-red" />
-            <p className="text-t2 text-sm">分析失败</p>
+            <p className="text-t2 text-sm">Analysis failed</p>
             <p className="text-t3 text-xs">{selected.filename}</p>
           </div>
         )}

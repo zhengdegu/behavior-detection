@@ -1,63 +1,63 @@
-# Behavior Detection — 行为异常检测系统
+# Behavior Detection System
 
-实时视频行为异常检测系统，支持 **聚集检测**、**打架检测**、**跌倒检测**，前后端打包为单一 Docker 镜像，支持 MQTT 事件推送到第三方系统。
+Real-time video behavior detection system supporting **crowd detection**, **fight detection**, and **fall detection**. Frontend and backend are packaged into a single Docker image with MQTT event push to third-party systems.
 
-## 功能
+## Features
 
-| 功能 | 说明 |
-|------|------|
-| 聚集检测 (Crowd) | 基于连通分量聚类，区域内人数超过阈值告警 |
-| 打架检测 (Fight) | 多人近距离 + 高速运动 + Pose 姿态增强（手腕挥拳特征） |
-| 跌倒检测 (Fall) | bbox 宽高比突变 + Pose 姿态增强（头低于臀部） |
-| 视频分析 | 上传视频文件离线分析，生成标注视频和事件报告 |
-| MQTT 推送 | 事件生命周期（triggered → updating → resolved）推送到外部系统 |
-| 实时预览 | 通过 go2rtc WebRTC/MSE 低延迟预览摄像头画面 |
+| Feature | Description |
+|---------|-------------|
+| Crowd Detection | Connected component clustering, alerts when people count exceeds threshold in an area |
+| Fight Detection | Multiple people in close proximity + high-speed motion + Pose enhancement (wrist punching features) |
+| Fall Detection | Bbox aspect ratio sudden change + Pose enhancement (head below hips) |
+| Video Analysis | Upload video files for offline analysis, generates annotated video and event reports |
+| MQTT Push | Event lifecycle (triggered → updating → resolved) push to external systems |
+| Live Preview | Low-latency camera preview via go2rtc WebRTC/MSE |
 
-## 技术栈
+## Tech Stack
 
-**后端：** Python 3.12 · FastAPI · YOLO (Ultralytics) · ByteTrack · YOLO Pose · OpenCV · SQLite · paho-mqtt
+**Backend:** Python 3.12 · FastAPI · YOLO (Ultralytics) · ByteTrack · YOLO Pose · OpenCV · SQLite · paho-mqtt
 
-**前端：** React 19 · TypeScript · Vite · Tailwind CSS v4
+**Frontend:** React 19 · TypeScript · Vite · Tailwind CSS v4
 
-**基础设施：** Docker 多阶段构建 · go2rtc (RTSP 代理) · NVIDIA GPU 支持
+**Infrastructure:** Docker multi-stage build · go2rtc (RTSP proxy) · NVIDIA GPU support
 
-## 快速开始
+## Quick Start
 
-### Docker 部署（推荐）
+### Docker Deployment (Recommended)
 
 ```bash
-# 克隆仓库
+# Clone the repository
 git clone https://github.com/zhengdegu/behavior-detection.git
 cd behavior-detection
 ```
 
-**无 GPU（CPU 模式）：**
+**Without GPU (CPU mode):**
 
 ```bash
 docker compose up -d --build
 ```
 
-**有 NVIDIA GPU：**
+**With NVIDIA GPU:**
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
 ```
 
-访问 `http://localhost:8000`
+Visit `http://localhost:8000`
 
-### 拉取预构建镜像
+### Pull Pre-built Images
 
 ```bash
-# CPU 版（推荐，体积小）
+# CPU version (recommended, smaller size)
 docker pull ghcr.io/zhengdegu/behavior-detection:latest
 
-# GPU 版（CUDA 12.8，需要 nvidia-container-toolkit）
+# GPU version (CUDA 12.8, requires nvidia-container-toolkit)
 docker pull ghcr.io/zhengdegu/behavior-detection:gpu
 ```
 
-使用 docker-compose 运行预构建镜像：
+Run pre-built images with docker-compose:
 
-**无 GPU：**
+**Without GPU:**
 
 ```yaml
 # docker-compose.yml
@@ -72,7 +72,7 @@ services:
     restart: unless-stopped
 ```
 
-**有 NVIDIA GPU：**
+**With NVIDIA GPU:**
 
 ```yaml
 # docker-compose.yml
@@ -98,13 +98,13 @@ services:
 docker compose up -d
 ```
 
-> **说明：** CPU 模式下推理速度较慢，建议降低检测 FPS（如设为 1-2）以减少 CPU 负载。GPU 模式需要安装 [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)。
+> **Note:** Inference is slower in CPU mode. Consider lowering the detection FPS (e.g., 1-2) to reduce CPU load. GPU mode requires [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html).
 
-### Docker Run 直接启动
+### Docker Run
 
-如果不使用 docker-compose，可以直接用 `docker run`：
+If not using docker-compose, you can start directly with `docker run`:
 
-**无 GPU：**
+**Without GPU:**
 
 ```bash
 docker run -d \
@@ -116,7 +116,7 @@ docker run -d \
   ghcr.io/zhengdegu/behavior-detection:latest
 ```
 
-**有 NVIDIA GPU：**
+**With NVIDIA GPU:**
 
 ```bash
 docker run -d \
@@ -129,96 +129,96 @@ docker run -d \
   ghcr.io/zhengdegu/behavior-detection:gpu
 ```
 
-> Windows PowerShell 需要将 `$(pwd)` 替换为 `${PWD}`。
+> On Windows PowerShell, replace `$(pwd)` with `${PWD}`.
 
-### 本地开发
+### Local Development
 
 ```bash
-# 后端
+# Backend
 cd backend
 pip install -r requirements.txt
 python -m src.main
-# API 运行在 http://localhost:8000
+# API runs at http://localhost:8000
 
-# 前端（另一个终端）
+# Frontend (in another terminal)
 cd frontend
 npm install
 npm run dev
-# 开发服务器运行在 http://localhost:5173，自动代理 API 到 8000
+# Dev server runs at http://localhost:5173, auto-proxies API to port 8000
 ```
 
-## 使用说明
+## Usage Guide
 
-### 1. 添加摄像头
+### 1. Add Cameras
 
-打开 `http://localhost:8000`，进入 **Config** 页面：
+Open `http://localhost:8000` and go to the **Config** page:
 
-1. 点击 **+ Add** 按钮
-2. 填写 Camera ID、名称、RTSP URL
-3. 点击 **Create**
+1. Click the **+ Add** button
+2. Fill in Camera ID, name, and RTSP URL
+3. Click **Create**
 
-摄像头添加后会自动开始拉流和检测。
+The camera will automatically start streaming and detecting after being added.
 
-### 2. 配置检测规则
+### 2. Configure Detection Rules
 
-在 Config 页面选择一个摄像头：
+On the Config page, select a camera:
 
-- **ROI 区域**：在左侧画布上点击绘制检测区域（多边形），只有区域内的人员才会触发告警
-- **Detection Rules**：在右侧配置三种检测规则的参数和开关
-  - **Crowd**：`max_count`（触发人数阈值）、`radius`（聚集半径 px）、`cooldown`（冷却时间 s）
-  - **Fight**：`proximity_radius`（近距离阈值 px）、`min_speed`（最小运动速度 px/s）
-  - **Fall**：`ratio_threshold`（宽高比阈值）、`min_y_drop`（最小下移距离 px）
+- **ROI Area**: Click on the left canvas to draw a detection region (polygon). Only people within the region will trigger alerts.
+- **Detection Rules**: Configure parameters and toggles for three detection rules on the right side:
+  - **Crowd**: `max_count` (person count threshold), `radius` (gathering radius in px), `cooldown` (cooldown time in seconds)
+  - **Fight**: `proximity_radius` (close-range threshold in px), `min_speed` (minimum motion speed in px/s)
+  - **Fall**: `ratio_threshold` (aspect ratio threshold), `min_y_drop` (minimum drop distance in px)
 
-点击 **Save Configuration** 保存，摄像头会自动重启应用新配置。
+Click **Save Configuration** to save. The camera will automatically restart with the new configuration.
 
-### 3. 实时监控
+### 3. Live Monitoring
 
-进入 **Live** 页面：
+Go to the **Live** page:
 
-- 左侧：摄像头网格，通过 go2rtc WebRTC 低延迟预览，检测框实时叠加
-- 右侧：Event Feed，实时显示告警事件（聚集/打架/跌倒）
+- Left: Camera grid with low-latency preview via go2rtc WebRTC, detection boxes overlaid in real-time
+- Right: Event Feed showing real-time alert events (crowd/fight/fall)
 
-### 4. 事件查看
+### 4. Event Viewing
 
-进入 **Events** 页面：
+Go to the **Events** page:
 
-- 按事件类型过滤（All / Crowd / Fight / Fall）
-- 查看事件截图、时间、摄像头、详情
-- 点击截图可放大查看
+- Filter by event type (All / Crowd / Fight / Fall)
+- View event screenshots, timestamps, cameras, and details
+- Click screenshots to enlarge
 
-### 5. 视频分析
+### 5. Video Analysis
 
-进入 **Analyze** 页面：
+Go to the **Analyze** page:
 
-1. 上传视频文件
-2. 配置 ROI 和检测规则（可选）
-3. 点击开始分析
-4. 分析完成后可查看事件列表和下载标注视频
+1. Upload a video file
+2. Configure ROI and detection rules (optional)
+3. Click Start Analysis
+4. After completion, view the event list and download the annotated video
 
-### 6. MQTT 事件推送
+### 6. MQTT Event Push
 
-#### 全局配置
+#### Global Configuration
 
-进入 **System** 页面底部的 MQTT Configuration 区域：
+Go to the MQTT Configuration section at the bottom of the **System** page:
 
-1. 填写 Broker 地址和端口
-2. 填写第三方指定的 Topic
-3. 填写用户名/密码（如需要）
-4. 设置 updating 消息间隔（默认 30 秒）
-5. 勾选 **Enable MQTT Publishing**
-6. 点击 **Save MQTT Config**
+1. Enter the Broker address and port
+2. Enter the topic specified by the third-party system
+3. Enter username/password (if required)
+4. Set the updating message interval (default 30 seconds)
+5. Check **Enable MQTT Publishing**
+6. Click **Save MQTT Config**
 
-#### 摄像头级别配置
+#### Camera-Level Configuration
 
-在 **Config** 页面选择摄像头，在 Detection Rules 下方的 MQTT Publishing 区域：
+On the **Config** page, select a camera. In the MQTT Publishing section below Detection Rules:
 
-1. 勾选 **Enable MQTT for this camera**
-2. 选择要推送的事件类型（Crowd / Fight / Fall）
-3. 保存配置
+1. Check **Enable MQTT for this camera**
+2. Select event types to push (Crowd / Fight / Fall)
+3. Save the configuration
 
-#### MQTT 消息格式
+#### MQTT Message Format
 
-事件遵循生命周期模型，同一事件只发送一次 triggered，持续期间按间隔发送 updating，消失后发送 resolved：
+Events follow a lifecycle model. The same event sends `triggered` once, `updating` at intervals during persistence, and `resolved` when it disappears:
 
 ```json
 {
@@ -226,9 +226,9 @@ npm run dev
   "status": "triggered",
   "type": "crowd",
   "camera_id": "cam01",
-  "camera_name": "大厅入口",
+  "camera_name": "Lobby Entrance",
   "timestamp": "2026-04-29T14:30:52+08:00",
-  "detail": "聚集告警：6人在半径200px内聚集",
+  "detail": "Crowd alert: 6 people gathered within 200px radius",
   "data": {
     "count": 6,
     "track_ids": [1, 3, 5, 7, 9, 12],
@@ -240,85 +240,85 @@ npm run dev
 }
 ```
 
-| status | 说明 | 发送时机 |
-|--------|------|----------|
-| `triggered` | 首次检测到异常 | 立即发送 |
-| `updating` | 异常持续中 | 每 N 秒发送一次（可配置） |
-| `resolved` | 异常消失 | 检测到异常消失时发送 |
+| Status | Description | When Sent |
+|--------|-------------|-----------|
+| `triggered` | Anomaly first detected | Sent immediately |
+| `updating` | Anomaly persists | Sent every N seconds (configurable) |
+| `resolved` | Anomaly disappeared | Sent when anomaly is no longer detected |
 
-## YOLO 模型
+## YOLO Models
 
-系统需要 YOLO 模型文件，放置在 `data/models/` 目录下：
+The system requires YOLO model files placed in the `data/models/` directory:
 
-- `yolo26m.pt` — 目标检测模型（必需）
-- `yolo26m-pose.pt` — 姿态估计模型（可选，增强打架/跌倒检测精度）
+- `yolo26m.pt` — Object detection model (required)
+- `yolo26m-pose.pt` — Pose estimation model (optional, enhances fight/fall detection accuracy)
 
-首次启动前需要手动下载模型文件到 `data/models/` 目录。
+Model files must be manually downloaded to `data/models/` before first startup.
 
-## API 参考
+## API Reference
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/cameras` | 摄像头列表 |
-| POST | `/api/cameras` | 添加摄像头 |
-| PUT | `/api/cameras/{id}` | 更新摄像头配置 |
-| DELETE | `/api/cameras/{id}` | 删除摄像头 |
-| GET | `/api/cameras/{id}/snapshot` | 获取摄像头快照 |
-| GET | `/api/events` | 事件列表（支持 sub_type、camera_id、limit 过滤） |
-| GET | `/api/status` | 系统状态 |
-| POST | `/api/video-analysis/upload` | 上传视频 |
-| GET | `/api/video-analysis/tasks` | 分析任务列表 |
-| POST | `/api/video-analysis/tasks/{id}/start` | 启动分析 |
-| GET | `/api/mqtt/config` | 获取 MQTT 配置 |
-| PUT | `/api/mqtt/config` | 更新 MQTT 配置 |
-| GET | `/api/mqtt/status` | MQTT 连接状态 |
-| WS | `/ws/events` | 实时事件推送 |
-| WS | `/ws/detections/{camera_id}` | 实时检测框推送 |
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/cameras` | List cameras |
+| POST | `/api/cameras` | Add camera |
+| PUT | `/api/cameras/{id}` | Update camera configuration |
+| DELETE | `/api/cameras/{id}` | Delete camera |
+| GET | `/api/cameras/{id}/snapshot` | Get camera snapshot |
+| GET | `/api/events` | List events (supports sub_type, camera_id, limit filters) |
+| GET | `/api/status` | System status |
+| POST | `/api/video-analysis/upload` | Upload video |
+| GET | `/api/video-analysis/tasks` | List analysis tasks |
+| POST | `/api/video-analysis/tasks/{id}/start` | Start analysis |
+| GET | `/api/mqtt/config` | Get MQTT configuration |
+| PUT | `/api/mqtt/config` | Update MQTT configuration |
+| GET | `/api/mqtt/status` | MQTT connection status |
+| WS | `/ws/events` | Real-time event push |
+| WS | `/ws/detections/{camera_id}` | Real-time detection box push |
 
-## 项目结构
+## Project Structure
 
 ```
 behavior-detection/
 ├── backend/
 │   ├── src/
-│   │   ├── main.py              # 主入口
-│   │   ├── server.py            # FastAPI Web 服务 + REST API
-│   │   ├── config.py            # Pydantic 配置模型
-│   │   ├── database.py          # SQLite 数据库 + Repository
-│   │   ├── analyzer.py          # 视频分析管线（每路摄像头一个线程）
-│   │   ├── detector.py          # YOLO 检测器 + Pose 检测器
-│   │   ├── detection.py         # Detection 数据类
-│   │   ├── geometry.py          # 几何工具（点在多边形内判定）
-│   │   ├── go2rtc.py            # go2rtc 流管理（RTSP 代理）
-│   │   ├── mqtt_publisher.py    # MQTT 发布器（paho-mqtt v2）
-│   │   ├── event_session.py     # 事件会话管理器（生命周期 + 合并）
-│   │   └── rules/               # 行为规则引擎
-│   │       ├── engine.py        # 规则聚合
-│   │       ├── base.py          # 规则基类（confirm + cooldown）
-│   │       ├── crowd.py         # 聚集检测
-│   │       ├── fight.py         # 打架检测
-│   │       └── fall.py          # 跌倒检测
+│   │   ├── main.py              # Main entry point
+│   │   ├── server.py            # FastAPI web server + REST API
+│   │   ├── config.py            # Pydantic configuration models
+│   │   ├── database.py          # SQLite database + Repository
+│   │   ├── analyzer.py          # Video analysis pipeline (one thread per camera)
+│   │   ├── detector.py          # YOLO detector + Pose detector
+│   │   ├── detection.py         # Detection data class
+│   │   ├── geometry.py          # Geometry utilities (point-in-polygon)
+│   │   ├── go2rtc.py            # go2rtc stream management (RTSP proxy)
+│   │   ├── mqtt_publisher.py    # MQTT publisher (paho-mqtt v2)
+│   │   ├── event_session.py     # Event session manager (lifecycle + merge)
+│   │   └── rules/               # Behavior rule engine
+│   │       ├── engine.py        # Rule aggregation
+│   │       ├── base.py          # Rule base class (confirm + cooldown)
+│   │       ├── crowd.py         # Crowd detection
+│   │       ├── fight.py         # Fight detection
+│   │       └── fall.py          # Fall detection
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
 │   │   ├── pages/               # Live / Events / Config / Analyze / System
 │   │   ├── components/          # CameraGrid / Go2RTCPlayer / RoiEditor / ...
 │   │   ├── hooks/               # useWebSocket / useDetectionWebSocket
-│   │   ├── api.ts               # API 客户端
-│   │   └── types.ts             # TypeScript 类型定义
+│   │   ├── api.ts               # API client
+│   │   └── types.ts             # TypeScript type definitions
 │   └── package.json
-├── Dockerfile                    # 多阶段构建（Node.js + Python）
+├── Dockerfile                    # Multi-stage build (Node.js + Python)
 ├── docker-compose.yml
 └── .github/workflows/
-    └── build-image.yml           # GitHub Actions 自动构建镜像
+    └── build-image.yml           # GitHub Actions auto-build images
 ```
 
-## 端口说明
+## Port Information
 
-系统仅对外暴露一个端口：
+The system exposes only one port externally:
 
-| 端口 | 说明 |
-|------|------|
-| 8000 | FastAPI（前端 + 后端 API + go2rtc 代理） |
+| Port | Description |
+|------|-------------|
+| 8000 | FastAPI (frontend + backend API + go2rtc proxy) |
 
-go2rtc 的 1984（API）和 8555（RTSP）端口仅在容器内部使用，所有请求通过 FastAPI 反向代理转发。
+go2rtc's ports 1984 (API) and 8555 (RTSP) are used internally within the container only. All requests are forwarded through the FastAPI reverse proxy.

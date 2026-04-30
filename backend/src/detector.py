@@ -1,5 +1,5 @@
 """
-目标检测与跟踪模块 — YOLO 检测 + ByteTrack 跟踪 + Pose 姿态估计
+Object detection and tracking module — YOLO detection + ByteTrack tracking + Pose estimation
 """
 
 import logging
@@ -13,12 +13,12 @@ from .detection import Detection
 logger = logging.getLogger(__name__)
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-logger.info(f"推理设备: {DEVICE}" +
+logger.info(f"Inference device: {DEVICE}" +
             (f" ({torch.cuda.get_device_name(0)})" if DEVICE == "cuda" else ""))
 
 
 class YOLODetector:
-    """YOLO 检测器 + ByteTrack 跟踪"""
+    """YOLO detector + ByteTrack tracker"""
 
     def __init__(self, model_path: str = "data/models/yolo26m.pt",
                  confidence: float = 0.5,
@@ -28,9 +28,9 @@ class YOLODetector:
         self.model.to(DEVICE)
         self.confidence = confidence
         self.tracker_config = tracker_config
-        # 只检测 person 类别 (class_id=0)
+        # Only detect person class (class_id=0)
         self.allowed_classes = [0]
-        logger.info(f"YOLO 模型已加载: {model_path}, 设备: {DEVICE}")
+        logger.info(f"YOLO model loaded: {model_path}, device: {DEVICE}")
 
     def _parse_results(self, results, with_track: bool = False) -> List[Detection]:
         detections = []
@@ -57,7 +57,7 @@ class YOLODetector:
         return detections
 
     def track(self, frame: np.ndarray) -> List[Detection]:
-        """检测 + 跟踪"""
+        """Detection + tracking"""
         results = self.model.track(
             frame, conf=self.confidence, persist=True,
             tracker=self.tracker_config, device=DEVICE, verbose=False,
@@ -66,7 +66,7 @@ class YOLODetector:
 
 
 class PoseDetector:
-    """YOLO Pose 检测器 — 输出人体关键点，增强打架/跌倒精度"""
+    """YOLO Pose detector — outputs human keypoints, enhances fight/fall detection accuracy"""
 
     def __init__(self, model_path: str = "data/models/yolo26m-pose.pt",
                  confidence: float = 0.3,
@@ -76,7 +76,7 @@ class PoseDetector:
         self.model.to(DEVICE)
         self.confidence = confidence
         self.tracker_config = tracker_config
-        logger.info(f"Pose 模型已加载: {model_path}, 设备: {DEVICE}")
+        logger.info(f"Pose model loaded: {model_path}, device: {DEVICE}")
 
     def track(self, frame: np.ndarray) -> List[Detection]:
         results = self.model.track(

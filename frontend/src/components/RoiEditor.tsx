@@ -270,12 +270,12 @@ export default function RoiEditor({
         />
         {imgError && (
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            <span className="text-t3 text-xs mb-2">无法获取画面，请确认摄像头在线</span>
+            <span className="text-t3 text-xs mb-2">Unable to get video feed, please confirm camera is online</span>
             <button
               onClick={(e) => { e.stopPropagation(); loadImage() }}
               className="pointer-events-auto px-3 py-1.5 rounded-md bg-card border border-border text-t2 text-xs cursor-pointer hover:text-t1 hover:border-hover transition-colors duration-150"
             >
-              重试
+              Retry
             </button>
           </div>
         )}
@@ -283,8 +283,8 @@ export default function RoiEditor({
 
       <div className="text-[10px] text-t3 italic mt-2 mb-2">
         {closed
-          ? '拖拽顶点调整区域，或点击 Clear 重新绘制'
-          : '点击画面添加顶点，双击或点击首顶点闭合多边形'}
+          ? 'Drag vertices to adjust the area, or click Clear to redraw'
+          : 'Click on the image to add vertices, double-click or click the first vertex to close the polygon'}
       </div>
 
       <div className="flex gap-1.5">

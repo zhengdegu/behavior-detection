@@ -142,7 +142,7 @@ export default function Events() {
             {!loading && pageEvents.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-3.5 py-8 text-center text-t3 text-[11px]">
-                  暂无事件
+                  No events
                 </td>
               </tr>
             )}

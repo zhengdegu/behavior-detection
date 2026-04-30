@@ -1,5 +1,5 @@
 """
-打架检测 — 多人近距离 + 高速运动 + Pose 姿态增强（手腕挥拳特征）
+Fight detection — multiple people in close proximity + high-speed motion + Pose enhancement (wrist punching features)
 """
 
 import math
@@ -29,13 +29,13 @@ class FightRule(BaseAnomalyRule):
         self._prev_wrists: Dict[int, list] = {}
 
     def _calc_limb_speed(self, det: Detection, now: float) -> float:
-        """计算手腕运动速度（Pose 增强）"""
+        """Calculate wrist movement speed (Pose enhancement)"""
         if det.keypoints is None or det.track_id < 0:
             return 0.0
 
         kp = det.keypoints
         wrists = []
-        for idx in [9, 10]:  # 左右手腕
+        for idx in [9, 10]:  # Left and right wrists
             if kp[idx][2] > 0.15:
                 wrists.append((float(kp[idx][0]), float(kp[idx][1])))
 
@@ -85,7 +85,7 @@ class FightRule(BaseAnomalyRule):
                 if dt > 0:
                     speeds[det.track_id] = math.dist(det.center, prev_pos) / dt
 
-        # 清理已消失的 track
+        # Clean up disappeared tracks
         active_ids = {d.track_id for d in person_dets}
         for tid in list(self._prev_positions.keys()):
             if tid not in active_ids:
@@ -132,12 +132,12 @@ class FightRule(BaseAnomalyRule):
                     "involved_count": len(involved),
                     "avg_speed": round(avg_speed, 1),
                     "bbox": det_i.bbox,
-                    "detail": (f"疑似打架：{len(involved)}人近距离剧烈运动，"
-                               f"平均速度{avg_speed:.0f}px/s"
-                               + (" [Pose增强]" if has_pose else "")),
+                    "detail": (f"Suspected fight: {len(involved)} people in close-range violent motion, "
+                               f"avg speed {avg_speed:.0f}px/s"
+                               + (" [Pose enhanced]" if has_pose else "")),
                     "timestamp": now,
                 })
-                logger.info(f"[打架] cam={camera_id} involved={len(involved)} "
+                logger.info(f"[Fight] cam={camera_id} involved={len(involved)} "
                             f"speed={avg_speed:.0f}")
                 break
 

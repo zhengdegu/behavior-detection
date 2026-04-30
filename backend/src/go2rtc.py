@@ -1,10 +1,10 @@
 """
-go2rtc 流管理模块 — 管理 RTSP 流代理
+go2rtc stream management module — manages RTSP stream proxy
 
-通过 go2rtc REST API 动态管理 RTSP 流：
-- 添加/更新摄像头时自动注册 go2rtc stream
-- 删除摄像头时自动移除 go2rtc stream
-- 自动启动/停止 go2rtc 进程
+Dynamically manages RTSP streams via go2rtc REST API:
+- Automatically registers go2rtc stream when adding/updating cameras
+- Automatically removes go2rtc stream when deleting cameras
+- Automatically starts/stops go2rtc process
 """
 
 import logging
@@ -20,22 +20,22 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
-# go2rtc 默认配置
+# go2rtc default configuration
 DEFAULT_GO2RTC_API = "http://127.0.0.1:1984"
 DEFAULT_GO2RTC_RTSP_PORT = 8555
 DEFAULT_GO2RTC_CONFIG = "data/go2rtc.yaml"
 
 
 def _find_go2rtc_binary() -> Optional[str]:
-    """查找 go2rtc 可执行文件"""
-    # 优先查找 data/ 目录下的
+    """Find go2rtc executable"""
+    # Look for go2rtc in data/ directory first
     local_path = Path("data/go2rtc.exe")
     if local_path.exists():
         return str(local_path)
     local_path = Path("data/go2rtc")
     if local_path.exists():
         return str(local_path)
-    # 查找 PATH 中的
+    # Look in PATH
     import shutil
     path = shutil.which("go2rtc")
     if path:
@@ -44,7 +44,7 @@ def _find_go2rtc_binary() -> Optional[str]:
 
 
 class Go2RTCManager:
-    """go2rtc 流管理器 — 通过 REST API + 配置文件双写"""
+    """go2rtc stream manager — via REST API + config file dual-write"""
 
     def __init__(self, api_url: str = DEFAULT_GO2RTC_API,
                  rtsp_port: int = DEFAULT_GO2RTC_RTSP_PORT,
@@ -58,11 +58,11 @@ class Go2RTCManager:
         self._health_thread: Optional[threading.Thread] = None
 
     def get_restream_url(self, stream_name: str) -> str:
-        """获取 go2rtc restream 地址（供 ffmpeg/OpenCV 拉流）"""
+        """Get go2rtc restream URL (for ffmpeg/OpenCV to pull stream)"""
         return f"rtsp://127.0.0.1:{self.rtsp_port}/{stream_name}"
 
     def wait_ready(self, timeout: float = 10.0) -> bool:
-        """等待 go2rtc API 端口可达，用于启动后确认就绪"""
+        """Wait for go2rtc API port to be reachable, used to confirm readiness after startup"""
         deadline = time.time() + timeout
         while time.time() < deadline:
             try:
@@ -72,18 +72,18 @@ class Go2RTCManager:
             except Exception:
                 pass
             time.sleep(0.5)
-        logger.error(f"go2rtc API 在 {timeout}s 内未就绪")
+        logger.error(f"go2rtc API not ready within {timeout}s")
         return False
 
     def start(self) -> bool:
-        """启动 go2rtc 进程"""
+        """Start go2rtc process"""
         binary = _find_go2rtc_binary()
         if not binary:
-            logger.warning("go2rtc 未找到，RTSP 代理不可用。"
-                           "请将 go2rtc 放在 data/ 目录下")
+            logger.warning("go2rtc not found, RTSP proxy unavailable. "
+                           "Please place go2rtc in the data/ directory")
             return False
 
-        # 确保配置文件存在
+        # Ensure config file exists
         self._ensure_config()
 
         try:
@@ -92,20 +92,20 @@ class Go2RTCManager:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
-            # 等待启动
+            # Wait for startup
             time.sleep(1)
             if self._process.poll() is not None:
-                logger.error("go2rtc 启动失败")
+                logger.error("go2rtc failed to start")
                 return False
-            logger.info(f"go2rtc 已启动 (PID={self._process.pid}), "
+            logger.info(f"go2rtc started (PID={self._process.pid}), "
                         f"API={self.api_url}, RTSP=:{self.rtsp_port}")
             return True
         except Exception as e:
-            logger.error(f"go2rtc 启动异常: {e}")
+            logger.error(f"go2rtc startup error: {e}")
             return False
 
     def stop(self):
-        """停止 go2rtc 进程"""
+        """Stop go2rtc process"""
         self.stop_health_check()
         if self._process:
             self._process.terminate()
@@ -115,10 +115,10 @@ class Go2RTCManager:
                 self._process.kill()
             self._process = None
         self._registered_streams.clear()
-        logger.info("go2rtc 已停止")
+        logger.info("go2rtc stopped")
 
     def start_health_check(self):
-        """启动后台健康检查线程（每 30 秒检查一次）"""
+        """Start background health check thread (checks every 30 seconds)"""
         if self._health_check_running:
             return
         self._health_check_running = True
@@ -126,34 +126,34 @@ class Go2RTCManager:
             target=self._health_check_loop, daemon=True
         )
         self._health_thread.start()
-        logger.info("go2rtc 健康检查线程已启动")
+        logger.info("go2rtc health check thread started")
 
     def stop_health_check(self):
-        """停止健康检查线程"""
+        """Stop health check thread"""
         self._health_check_running = False
         if self._health_thread:
             self._health_thread.join(timeout=5)
             self._health_thread = None
 
     def _health_check_loop(self):
-        """健康检查循环：每 30 秒检查进程存活，意外退出时自动重启"""
+        """Health check loop: checks process alive every 30 seconds, auto-restarts on unexpected exit"""
         while self._health_check_running:
             time.sleep(30)
             if not self._health_check_running:
                 break
             if self._process and self._process.poll() is not None:
-                logger.warning("go2rtc 进程意外退出，3 秒后自动重启...")
+                logger.warning("go2rtc process exited unexpectedly, auto-restarting in 3 seconds...")
                 time.sleep(3)
                 if not self._health_check_running:
                     break
                 if self.start():
-                    # 重新注册所有已记录的流
+                    # Re-register all recorded streams
                     for name, url in self._registered_streams.items():
                         self.add_stream(name, url)
-                    logger.info("go2rtc 已重启并重新注册所有流")
+                    logger.info("go2rtc restarted and re-registered all streams")
 
     def register_all_streams(self, cameras: list[dict]):
-        """批量注册所有摄像头流到 go2rtc"""
+        """Batch register all camera streams to go2rtc"""
         for cam in cameras:
             cam_id = cam.get("id", "")
             rtsp_url = cam.get("url", "")
@@ -162,11 +162,11 @@ class Go2RTCManager:
                 self._registered_streams[cam_id] = rtsp_url
 
     def get_player_url(self, stream_name: str) -> str:
-        """获取 go2rtc WebSocket 播放器 URL"""
+        """Get go2rtc WebSocket player URL"""
         return f"/go2rtc/ws?src={stream_name}"
 
     def get_all_player_urls(self) -> dict[str, str]:
-        """获取所有已注册流的播放器 URL 映射"""
+        """Get player URL mapping for all registered streams"""
         return {
             name: self.get_player_url(name)
             for name in self._registered_streams
@@ -174,16 +174,16 @@ class Go2RTCManager:
 
     @property
     def available(self) -> bool:
-        """go2rtc 是否可用（二进制存在且进程运行中）"""
+        """Whether go2rtc is available (binary exists and process is running)"""
         binary_exists = _find_go2rtc_binary() is not None
         process_running = self._process is not None and self._process.poll() is None
         return binary_exists and process_running
 
     def is_running(self) -> bool:
-        """检查 go2rtc 是否在运行"""
+        """Check if go2rtc is running"""
         if self._process and self._process.poll() is None:
             return True
-        # 也检查 API 是否可达（可能是外部启动的）
+        # Also check if API is reachable (may have been started externally)
         try:
             r = requests.get(f"{self.api_url}/api/streams", timeout=2)
             return r.ok
@@ -191,34 +191,34 @@ class Go2RTCManager:
             return False
 
     def add_stream(self, stream_name: str, rtsp_url: str) -> bool:
-        """添加或更新 go2rtc 流"""
+        """Add or update go2rtc stream"""
         self._registered_streams[stream_name] = rtsp_url
 
-        # 含 URL 编码字符的 RTSP URL 需要用 ffmpeg 源，只写配置文件（API 会破坏编码）
+        # URLs with encoded characters need ffmpeg source, only write config file (API breaks encoding)
         use_ffmpeg = "%" in rtsp_url and rtsp_url.startswith("rtsp://")
 
         if not use_ffmpeg:
-            # 普通 URL 通过 API 热更新
+            # Normal URLs updated via API hot-reload
             try:
                 api_url = f"{self.api_url}/api/streams?name={stream_name}&src={rtsp_url}"
                 r = requests.put(api_url, timeout=10)
                 if not r.ok:
-                    logger.error(f"go2rtc 添加流失败 {stream_name}: {r.status_code} {r.text}")
+                    logger.error(f"go2rtc add stream failed {stream_name}: {r.status_code} {r.text}")
                 else:
-                    logger.info(f"go2rtc 流已添加: {stream_name}")
+                    logger.info(f"go2rtc stream added: {stream_name}")
             except requests.RequestException as e:
-                logger.warning(f"go2rtc API 不可用，仅写入配置文件: {e}")
+                logger.warning(f"go2rtc API unavailable, writing to config file only: {e}")
 
-        # 写入配置文件持久化（含 ffmpeg 前缀处理）
+        # Write to config file for persistence (with ffmpeg prefix handling)
         self._update_config_file(stream_name, rtsp_url)
 
         if use_ffmpeg:
-            logger.info(f"go2rtc 流已写入配置 (ffmpeg 源): {stream_name}")
+            logger.info(f"go2rtc stream written to config (ffmpeg source): {stream_name}")
 
         return True
 
     def remove_stream(self, stream_name: str) -> bool:
-        """删除 go2rtc 流"""
+        """Delete go2rtc stream"""
         self._registered_streams.pop(stream_name, None)
 
         try:
@@ -228,17 +228,17 @@ class Go2RTCManager:
                 timeout=10,
             )
             if r.ok:
-                logger.info(f"go2rtc 流已删除: {stream_name}")
+                logger.info(f"go2rtc stream deleted: {stream_name}")
         except requests.RequestException as e:
-            logger.warning(f"go2rtc API 不可用: {e}")
+            logger.warning(f"go2rtc API unavailable: {e}")
 
         self._remove_from_config_file(stream_name)
         return True
 
     def _ensure_config(self):
-        """确保 go2rtc 配置文件存在"""
+        """Ensure go2rtc config file exists"""
         if os.path.isfile(self.config_path):
-            # 确保已有配置包含 origin 设置
+            # Ensure existing config includes origin setting
             config = self._load_config()
             api_cfg = config.get("api", {})
             if "origin" not in api_cfg:
@@ -255,11 +255,11 @@ class Go2RTCManager:
         self._save_config(config)
 
     def _update_config_file(self, stream_name: str, rtsp_url: str):
-        """更新 go2rtc.yaml 配置文件"""
+        """Update go2rtc.yaml config file"""
         config = self._load_config()
         if "streams" not in config:
             config["streams"] = {}
-        # 对含 URL 编码字符的 RTSP URL 使用 ffmpeg 源（go2rtc 内置 RTSP 客户端对编码 URL 兼容性差）
+        # For RTSP URLs with encoded characters, use ffmpeg source (go2rtc's built-in RTSP client has poor compatibility with encoded URLs)
         if "%" in rtsp_url and rtsp_url.startswith("rtsp://"):
             stream_value = (
                 f"exec:ffmpeg -hide_banner -rtsp_transport tcp -timeout 10000000 "
@@ -272,7 +272,7 @@ class Go2RTCManager:
         self._save_config(config)
 
     def _remove_from_config_file(self, stream_name: str):
-        """从 go2rtc.yaml 移除流"""
+        """Remove stream from go2rtc.yaml"""
         config = self._load_config()
         streams = config.get("streams", {})
         if stream_name in streams:
@@ -280,7 +280,7 @@ class Go2RTCManager:
             self._save_config(config)
 
     def _load_config(self) -> dict:
-        """加载 go2rtc.yaml"""
+        """Load go2rtc.yaml"""
         if os.path.isfile(self.config_path):
             with open(self.config_path, "r", encoding="utf-8") as f:
                 return yaml.safe_load(f) or {}
@@ -292,7 +292,7 @@ class Go2RTCManager:
         }
 
     def _save_config(self, config: dict):
-        """保存 go2rtc.yaml"""
+        """Save go2rtc.yaml"""
         os.makedirs(os.path.dirname(self.config_path) or ".", exist_ok=True)
         with open(self.config_path, "w", encoding="utf-8") as f:
             yaml.dump(config, f, default_flow_style=False, allow_unicode=True)

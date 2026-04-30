@@ -1,5 +1,5 @@
 """
-行为检测引擎 — 聚合聚集/打架/跌倒三项规则
+Behavior detection engine — aggregates crowd/fight/fall rules
 """
 
 import logging
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class BehaviorEngine:
-    """行为检测引擎，聚合所有规则"""
+    """Behavior detection engine, aggregates all rules"""
 
     def __init__(self, config: dict, roi: Polygon = None):
         self.rules: List[BaseAnomalyRule] = []
@@ -55,7 +55,7 @@ class BehaviorEngine:
     def update(self, detections: List[Detection],
                camera_id: str = "",
                frame_ts: float = 0.0) -> List[Dict[str, Any]]:
-        """运行所有规则，返回异常事件列表"""
+        """Run all rules, return anomaly event list"""
         if self.roi:
             detections = [d for d in detections
                           if d.track_id < 0 or point_in_polygon(d.foot, self.roi)]
@@ -65,5 +65,5 @@ class BehaviorEngine:
                 events = rule.update(detections, camera_id, frame_ts=frame_ts)
                 all_events.extend(events)
             except Exception as e:
-                logger.error(f"规则 {rule.rule_name} 异常: {e}")
+                logger.error(f"Rule {rule.rule_name} error: {e}")
         return all_events

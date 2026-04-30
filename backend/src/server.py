@@ -1,5 +1,5 @@
 """
-FastAPI Web 服务 — REST API + go2rtc 反向代理 + WebSocket 事件/检测推送
+FastAPI Web server — REST API + go2rtc reverse proxy + WebSocket event/detection push
 """
 
 import asyncio
@@ -27,7 +27,7 @@ from .analyzer import CameraAnalyzer
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="行为异常检测系统", version="1.0.0")
+app = FastAPI(title="Behavior Detection System", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], allow_credentials=True,
@@ -35,14 +35,14 @@ app.add_middleware(
 )
 
 
-# ── SPA 路由回退中间件 ──
+# ── SPA Route Fallback Middleware ──
 
-# 前端静态资源目录（由多阶段 Docker 构建复制）
+# Frontend static assets directory (copied by multi-stage Docker build)
 FRONTEND_DIR = Path(__file__).parent.parent / "static" / "frontend"
 
 
 class SPAFallbackMiddleware(BaseHTTPMiddleware):
-    """SPA 路由回退：非 API/WS/静态文件的 404 请求返回 index.html"""
+    """SPA route fallback: return index.html for non-API/WS/static 404 requests"""
 
     async def dispatch(self, request, call_next):
         response = await call_next(request)
@@ -58,54 +58,54 @@ class SPAFallbackMiddleware(BaseHTTPMiddleware):
 
     @staticmethod
     def _is_api_path(path: str) -> bool:
-        """判断是否为 API/资源路径（不应回退到 index.html）"""
+        """Check if path is an API/resource path (should not fall back to index.html)"""
         api_prefixes = ("/api/", "/ws/", "/go2rtc/", "/events/")
         return any(path.startswith(p) for p in api_prefixes)
 
 
-# 仅在前端目录存在时注册 SPA 回退中间件
+# Only register SPA fallback middleware when frontend directory exists
 if FRONTEND_DIR.exists():
     app.add_middleware(SPAFallbackMiddleware)
-    logger.info(f"前端目录已找到: {FRONTEND_DIR}")
+    logger.info(f"Frontend directory found: {FRONTEND_DIR}")
 else:
-    logger.warning(f"前端目录未找到: {FRONTEND_DIR}，仅运行后端 API")
+    logger.warning(f"Frontend directory not found: {FRONTEND_DIR}, running backend API only")
 
-# 事件截图目录 — 静态文件服务
+# Event screenshot directory — static file serving
 import os
 EVENTS_DIR = Path(__file__).parent.parent / "data" / "events"
 os.makedirs(str(EVENTS_DIR), exist_ok=True)
 app.mount("/events", StaticFiles(directory=str(EVENTS_DIR)), name="events")
 
-# 视频上传 / 标注输出目录
+# Video upload / annotated output directories
 UPLOADS_DIR = Path(__file__).parent.parent / "data" / "uploads"
 OUTPUTS_DIR = Path(__file__).parent.parent / "data" / "outputs"
 os.makedirs(str(UPLOADS_DIR), exist_ok=True)
 os.makedirs(str(OUTPUTS_DIR), exist_ok=True)
 
-# 全局状态（由 main.py 注入）
+# Global state (injected by main.py)
 _analyzers: Dict[str, Any] = {}
-_model_config: dict = {}  # 模型配置（从 ModelRepository 加载）
+_model_config: dict = {}  # Model config (loaded from ModelRepository)
 _events: List[Dict[str, Any]] = []
 _events_max = 1000
 _ws_clients: List[WebSocket] = []
 _event_loop = None
 
-# Detection WebSocket 客户端（按 camera_id 分组）
+# Detection WebSocket clients (grouped by camera_id)
 _detection_ws_clients: Dict[str, List[WebSocket]] = {}
 
-# go2rtc 管理器实例（由 main.py 通过 register_go2rtc 注入）
+# go2rtc manager instance (injected by main.py via register_go2rtc)
 _go2rtc_mgr = None
 
-# go2rtc 反向代理目标地址
+# go2rtc reverse proxy target address
 _GO2RTC_BASE_URL = "http://127.0.0.1:1984"
 _GO2RTC_WS_URL = "ws://127.0.0.1:1984"
 
-# 数据库 Repository 实例（由 main.py 通过 register_repositories 注入）
+# Database Repository instances (injected by main.py via register_repositories)
 _camera_repo = None
 _model_repo = None
 _task_repo = None
 
-# MQTT 组件实例（由 main.py 通过 register_mqtt 注入）
+# MQTT component instances (injected by main.py via register_mqtt)
 _mqtt_config_repo = None
 _mqtt_publisher = None
 _event_session_mgr = None
@@ -123,17 +123,17 @@ def register_analyzers(analyzers: dict):
 
 
 def register_repositories(camera_repo, model_repo, task_repo):
-    """注入数据库 Repository 实例和模型配置（由 main.py 调用）"""
+    """Inject database Repository instances and model config (called by main.py)"""
     global _camera_repo, _model_repo, _task_repo, _model_config
     _camera_repo = camera_repo
     _model_repo = model_repo
     _task_repo = task_repo
-    # 从 ModelRepository 加载模型配置到内存 dict（供 _run_video_analysis 使用）
+    # Load model config from ModelRepository into memory dict (for _run_video_analysis)
     _model_config = model_repo.get().model_dump()
 
 
 def push_event(event: dict):
-    """接收事件，存储并广播到 WebSocket"""
+    """Receive event, store and broadcast to WebSocket"""
     _events.append(event)
     if len(_events) > _events_max:
         _events.pop(0)
@@ -152,13 +152,13 @@ def _broadcast_ws(event: dict):
 
 
 def register_go2rtc(mgr):
-    """注入 Go2RTCManager 实例（由 main.py 调用）"""
+    """Inject Go2RTCManager instance (called by main.py)"""
     global _go2rtc_mgr
     _go2rtc_mgr = mgr
 
 
 def register_mqtt(mqtt_config_repo, mqtt_publisher, event_session_mgr):
-    """注入 MQTT 组件实例（由 main.py 调用）"""
+    """Inject MQTT component instances (called by main.py)"""
     global _mqtt_config_repo, _mqtt_publisher, _event_session_mgr
     _mqtt_config_repo = mqtt_config_repo
     _mqtt_publisher = mqtt_publisher
@@ -166,7 +166,7 @@ def register_mqtt(mqtt_config_repo, mqtt_publisher, event_session_mgr):
 
 
 def push_detections(camera_id: str, timestamp: float, detections: list):
-    """推送检测数据到所有订阅该 camera_id 的 WebSocket 客户端"""
+    """Push detection data to all WebSocket clients subscribed to this camera_id"""
     clients = _detection_ws_clients.get(camera_id)
     if not clients or _event_loop is None:
         return
@@ -179,14 +179,14 @@ def push_detections(camera_id: str, timestamp: float, detections: list):
         try:
             asyncio.run_coroutine_threadsafe(ws.send_text(msg), _event_loop)
         except Exception:
-            # 发送失败，移除该客户端
+            # Send failed, remove this client
             if ws in clients:
                 clients.remove(ws)
 
 
 # ── REST API ──
 
-# ── 请求模型 ──
+# ── Request Models ──
 
 class CreateCameraRequest(BaseModel):
     id: str
@@ -206,7 +206,7 @@ class UpdateCameraRequest(BaseModel):
 @app.get("/api/cameras")
 async def list_cameras():
     cameras = []
-    # 从数据库加载所有摄像头配置
+    # Load all camera configs from database
     db_configs = {cfg.id: cfg for cfg in _camera_repo.get_all()} if _camera_repo else {}
 
     for cid, analyzer in _analyzers.items():
@@ -237,17 +237,17 @@ async def create_camera(req: CreateCameraRequest):
     if req.id in _analyzers:
         return JSONResponse({"error": f"Camera '{req.id}' already exists"}, status_code=409)
 
-    # 创建配置
+    # Create config
     cam_cfg = CameraConfig(id=req.id, name=req.name, url=req.url)
 
-    # 持久化到数据库
+    # Persist to database
     _camera_repo.create(cam_cfg)
 
-    # 注册流到 go2rtc
+    # Register stream to go2rtc
     if _go2rtc_mgr and _go2rtc_mgr.available:
         _go2rtc_mgr.add_stream(req.id, req.url)
 
-    # 启动分析器
+    # Start analyzer
     cam_dict = cam_cfg.model_dump()
     restream_url = _go2rtc_mgr.get_restream_url(req.id) if (_go2rtc_mgr and _go2rtc_mgr.available) else None
 
@@ -283,7 +283,7 @@ async def update_camera(camera_id: str, req: UpdateCameraRequest):
     if not cfg:
         return JSONResponse({"error": f"Camera config for '{camera_id}' not found"}, status_code=404)
 
-    # 更新配置字段
+    # Update config fields
     if req.name is not None:
         cfg.name = req.name
     if req.url is not None:
@@ -297,14 +297,14 @@ async def update_camera(camera_id: str, req: UpdateCameraRequest):
     if req.mqtt_publish is not None:
         cfg.mqtt_publish = req.mqtt_publish
 
-    # 持久化到数据库
+    # Persist to database
     _camera_repo.update(cfg)
 
-    # 更新 go2rtc 流（URL 变更时）
+    # Update go2rtc stream (when URL changes)
     if _go2rtc_mgr and _go2rtc_mgr.available:
         _go2rtc_mgr.add_stream(camera_id, cfg.url)
 
-    # 停止旧分析器，启动新分析器（使用更新后的配置）
+    # Stop old analyzer, start new analyzer (with updated config)
     old_analyzer = _analyzers.get(camera_id)
     if old_analyzer:
         old_analyzer.stop()
@@ -340,15 +340,15 @@ async def delete_camera(camera_id: str):
     if camera_id not in _analyzers:
         return JSONResponse({"error": f"Camera '{camera_id}' not found"}, status_code=404)
 
-    # 停止分析器
+    # Stop analyzer
     analyzer = _analyzers.pop(camera_id)
     analyzer.stop()
 
-    # 从 go2rtc 移除流
+    # Remove stream from go2rtc
     if _go2rtc_mgr and _go2rtc_mgr.available:
         _go2rtc_mgr.remove_stream(camera_id)
 
-    # 从数据库删除配置
+    # Delete config from database
     _camera_repo.delete(camera_id)
 
     return {"message": f"Camera '{camera_id}' deleted"}
@@ -370,7 +370,7 @@ async def camera_snapshot(camera_id: str):
 
 @app.get("/api/events")
 async def list_events(
-    sub_type: str = Query(None, description="过滤事件子类型: crowd/fight/fall"),
+    sub_type: str = Query(None, description="Filter event sub_type: crowd/fight/fall"),
     camera_id: str = Query(None),
     limit: int = Query(50, ge=1, le=500),
 ):
@@ -391,10 +391,10 @@ async def system_status():
     }
 
 
-# ── 视频分析 API ──
+# ── Video Analysis API ──
 
 def _get_video_duration(filepath: str) -> float:
-    """获取视频时长（秒）"""
+    """Get video duration (seconds)"""
     cap = cv2.VideoCapture(filepath)
     if not cap.isOpened():
         return 0.0
@@ -407,7 +407,7 @@ def _get_video_duration(filepath: str) -> float:
 
 
 def _convert_to_h264(filepath: str):
-    """用 ffmpeg 将 mp4v 编码转为 H.264（浏览器兼容）"""
+    """Convert mp4v encoding to H.264 using ffmpeg (browser compatible)"""
     import subprocess
     h264_path = filepath.replace(".mp4", "_h264.mp4")
     try:
@@ -418,17 +418,17 @@ def _convert_to_h264(filepath: str):
         )
         if os.path.exists(h264_path) and os.path.getsize(h264_path) > 0:
             os.replace(h264_path, filepath)
-            logger.info(f"[VideoAnalysis] H.264 转码完成: {filepath}")
+            logger.info(f"[VideoAnalysis] H.264 transcoding complete: {filepath}")
         else:
-            logger.warning("[VideoAnalysis] ffmpeg 转码输出为空，保留原始 mp4v 编码")
+            logger.warning("[VideoAnalysis] ffmpeg transcoding output is empty, keeping original mp4v encoding")
     except FileNotFoundError:
-        logger.warning("[VideoAnalysis] ffmpeg 未安装，浏览器可能无法播放视频")
+        logger.warning("[VideoAnalysis] ffmpeg not installed, browser may not be able to play video")
     except Exception as e:
-        logger.warning(f"[VideoAnalysis] ffmpeg 转码失败: {e}，保留原始 mp4v 编码")
+        logger.warning(f"[VideoAnalysis] ffmpeg transcoding failed: {e}, keeping original mp4v encoding")
 
 
 def _run_video_analysis(task_id: str):
-    """在后台线程中运行视频分析"""
+    """Run video analysis in background thread"""
     task = _task_repo.get_by_id(task_id) if _task_repo else None
     if not task:
         return
@@ -441,7 +441,7 @@ def _run_video_analysis(task_id: str):
     cap = cv2.VideoCapture(input_path)
     if not cap.isOpened():
         _task_repo.update_status(task_id, "failed", 0)
-        logger.error(f"[VideoAnalysis] 无法打开视频: {input_path}")
+        logger.error(f"[VideoAnalysis] Unable to open video: {input_path}")
         return
 
     fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
@@ -463,7 +463,7 @@ def _run_video_analysis(task_id: str):
             tracker_config=mc.get("tracker_config", "bytetrack.yaml"),
         )
 
-        # 使用任务中保存的 ROI 和默认规则配置
+        # Use ROI and default rules config saved in task
         roi = task.get("roi") or []
         rules_cfg = task.get("rules") or {
             "crowd": {"enabled": True, "max_count": 3, "radius": 300,
@@ -474,8 +474,8 @@ def _run_video_analysis(task_id: str):
                      "min_y_drop": 10, "confirm_frames": 2, "cooldown": 10},
         }
         engine = BehaviorEngine(rules_cfg, roi=roi if roi else None)
-        logger.info(f"[VideoAnalysis] 任务 {task_id} 规则配置: {rules_cfg}")
-        logger.info(f"[VideoAnalysis] 引擎已加载 {len(engine.rules)} 条规则")
+        logger.info(f"[VideoAnalysis] Task {task_id} rules config: {rules_cfg}")
+        logger.info(f"[VideoAnalysis] Engine loaded {len(engine.rules)} rules")
 
         all_events = []
         stats = {
@@ -497,7 +497,7 @@ def _run_video_analysis(task_id: str):
             frame_ts = frame_idx / fps
             detections = detector.track(frame)
 
-            # 统计
+            # Statistics
             person_count = len([d for d in detections if d.track_id >= 0])
             person_counts.append(person_count)
             stats["total_detections"] += person_count
@@ -507,19 +507,19 @@ def _run_video_analysis(task_id: str):
                 if d.confidence > stats["max_confidence"]:
                     stats["max_confidence"] = d.confidence
 
-            # 行为检测
+            # Behavior detection
             events = engine.update(detections, camera_id=f"video_{task_id}", frame_ts=frame_ts)
             for evt in events:
                 evt["timestamp"] = frame_ts
                 evt["frame_index"] = frame_idx
                 all_events.append(evt)
-                logger.info(f"[VideoAnalysis] 事件: {evt.get('sub_type')} @ frame {frame_idx}")
+                logger.info(f"[VideoAnalysis] Event: {evt.get('sub_type')} @ frame {frame_idx}")
 
-            # 每100帧输出一次统计
+            # Log stats every 100 frames
             if frame_idx % 100 == 0:
                 logger.info(f"[VideoAnalysis] frame={frame_idx}/{total_frames}, persons={person_count}, events_so_far={len(all_events)}")
 
-            # 绘制标注帧
+            # Draw annotated frame
             annotated = frame.copy()
             for det in detections:
                 if det.track_id < 0:
@@ -544,50 +544,50 @@ def _run_video_analysis(task_id: str):
             writer.write(annotated)
             frame_idx += 1
 
-            # 定期更新进度到数据库（每 30 帧）
+            # Periodically update progress to database (every 30 frames)
             if total_frames > 0 and frame_idx % 30 == 0:
                 progress = int((frame_idx / total_frames) * 100)
                 _task_repo.update_status(task_id, "processing", progress)
 
-        # 完成统计
+        # Complete statistics
         stats["duration"] = frame_idx / fps if fps > 0 else 0.0
         stats["avg_persons"] = (
             sum(person_counts) / len(person_counts) if person_counts else 0.0
         )
         stats["total_frames"] = frame_idx
 
-        # 保存结果到数据库
+        # Save results to database
         output_video = f"{task_id}_annotated.mp4"
         _task_repo.update_result(task_id, all_events, stats, output_video)
         _task_repo.update_status(task_id, "completed", 100)
-        logger.info(f"[VideoAnalysis] 任务 {task_id} 完成, {len(all_events)} 个事件")
+        logger.info(f"[VideoAnalysis] Task {task_id} completed, {len(all_events)} events")
 
     except Exception as e:
         _task_repo.update_status(task_id, "failed", 0)
-        logger.error(f"[VideoAnalysis] 任务 {task_id} 失败: {e}")
+        logger.error(f"[VideoAnalysis] Task {task_id} failed: {e}")
     finally:
         cap.release()
         writer.release()
 
-        # 转码为 H.264 以便浏览器播放
+        # Convert to H.264 for browser playback
         _convert_to_h264(output_path)
 
 
 @app.post("/api/video-analysis/upload")
 async def upload_video(file: UploadFile = File(...)):
-    """上传视频文件，创建分析任务"""
+    """Upload video file, create analysis task"""
     task_id = str(uuid.uuid4())
     filename = f"{task_id}_{file.filename}"
     filepath = UPLOADS_DIR / filename
 
-    # 保存上传文件
+    # Save uploaded file
     content = await file.read()
     with open(filepath, "wb") as f:
         f.write(content)
 
     file_size = len(content)
 
-    # 获取视频时长
+    # Get video duration
     duration = _get_video_duration(str(filepath))
 
     task = {
@@ -612,14 +612,14 @@ async def upload_video(file: UploadFile = File(...)):
 
 @app.get("/api/video-analysis/tasks")
 async def list_analysis_tasks():
-    """获取所有分析任务列表"""
+    """Get all analysis task list"""
     tasks = _task_repo.get_all() if _task_repo else []
     return [_serialize_task(t) for t in tasks]
 
 
 @app.get("/api/video-analysis/tasks/{task_id}")
 async def get_analysis_task(task_id: str):
-    """获取分析任务详情"""
+    """Get analysis task details"""
     task = _task_repo.get_by_id(task_id) if _task_repo else None
     if not task:
         return JSONResponse({"error": f"Task '{task_id}' not found"}, status_code=404)
@@ -628,7 +628,7 @@ async def get_analysis_task(task_id: str):
 
 @app.post("/api/video-analysis/tasks/{task_id}/start")
 async def start_analysis_task(task_id: str):
-    """启动分析任务"""
+    """Start analysis task"""
     task = _task_repo.get_by_id(task_id) if _task_repo else None
     if not task:
         return JSONResponse({"error": f"Task '{task_id}' not found"}, status_code=404)
@@ -639,7 +639,7 @@ async def start_analysis_task(task_id: str):
             status_code=400,
         )
 
-    # 启动后台分析线程
+    # Start background analysis thread
     thread = threading.Thread(target=_run_video_analysis, args=(task_id,), daemon=True)
     thread.start()
 
@@ -648,17 +648,17 @@ async def start_analysis_task(task_id: str):
 
 @app.delete("/api/video-analysis/tasks/{task_id}")
 async def delete_analysis_task(task_id: str):
-    """删除分析任务及相关文件"""
+    """Delete analysis task and related files"""
     task = _task_repo.get_by_id(task_id) if _task_repo else None
     if not task:
         return JSONResponse({"error": f"Task '{task_id}' not found"}, status_code=404)
 
-    # 删除上传的视频文件
+    # Delete uploaded video file
     upload_path = UPLOADS_DIR / task["filename"]
     if upload_path.exists():
         upload_path.unlink()
 
-    # 删除标注视频文件
+    # Delete annotated video file
     if task.get("output_video"):
         output_path = OUTPUTS_DIR / task["output_video"]
         if output_path.exists():
@@ -670,7 +670,7 @@ async def delete_analysis_task(task_id: str):
 
 @app.get("/api/video-analysis/tasks/{task_id}/first_frame")
 async def get_task_first_frame(task_id: str):
-    """获取视频首帧图片"""
+    """Get video first frame image"""
     task = _task_repo.get_by_id(task_id) if _task_repo else None
     if not task:
         return JSONResponse({"error": f"Task '{task_id}' not found"}, status_code=404)
@@ -692,7 +692,7 @@ async def get_task_first_frame(task_id: str):
 
 @app.get("/api/video-analysis/tasks/{task_id}/video")
 async def get_task_video(task_id: str):
-    """下载标注视频"""
+    """Download annotated video"""
     task = _task_repo.get_by_id(task_id) if _task_repo else None
     if not task:
         return JSONResponse({"error": f"Task '{task_id}' not found"}, status_code=404)
@@ -712,7 +712,7 @@ async def get_task_video(task_id: str):
 
 
 def _serialize_task(task: dict) -> dict:
-    """序列化任务数据用于 API 响应"""
+    """Serialize task data for API response"""
     return {
         "id": task["id"],
         "filename": task.get("original_filename", task["filename"]),
@@ -726,7 +726,7 @@ def _serialize_task(task: dict) -> dict:
     }
 
 
-# ── MQTT 配置 API ──
+# ── MQTT Configuration API ──
 
 class UpdateMQTTConfigRequest(BaseModel):
     host: str = ""
@@ -740,7 +740,7 @@ class UpdateMQTTConfigRequest(BaseModel):
 
 @app.get("/api/mqtt/config")
 async def get_mqtt_config():
-    """获取 MQTT 全局配置（密码字段返回空字符串）"""
+    """Get MQTT global configuration (password field returns empty string)"""
     if not _mqtt_config_repo:
         return JSONResponse({"error": "MQTT not configured"}, status_code=503)
     config = _mqtt_config_repo.get()
@@ -748,7 +748,7 @@ async def get_mqtt_config():
         "host": config.host,
         "port": config.port,
         "username": config.username,
-        "password": "",  # 不返回密码明文
+        "password": "",  # Don't return password in plaintext
         "topic": config.topic,
         "enabled": config.enabled,
         "update_interval": config.update_interval,
@@ -757,11 +757,11 @@ async def get_mqtt_config():
 
 @app.put("/api/mqtt/config")
 async def update_mqtt_config(req: UpdateMQTTConfigRequest):
-    """更新 MQTT 全局配置"""
+    """Update MQTT global configuration"""
     if not _mqtt_config_repo:
         return JSONResponse({"error": "MQTT not configured"}, status_code=503)
 
-    # 如果密码为空字符串，保留原密码
+    # If password is empty string, keep original password
     current = _mqtt_config_repo.get()
     password = req.password if req.password else current.password
 
@@ -776,7 +776,7 @@ async def update_mqtt_config(req: UpdateMQTTConfigRequest):
     )
     _mqtt_config_repo.save(config)
 
-    # 同步更新 MQTTPublisher 连接
+    # Sync update MQTTPublisher connection
     if _mqtt_publisher:
         _mqtt_publisher.update_config(config)
 
@@ -793,7 +793,7 @@ async def update_mqtt_config(req: UpdateMQTTConfigRequest):
 
 @app.get("/api/mqtt/status")
 async def get_mqtt_status():
-    """获取 MQTT 连接状态"""
+    """Get MQTT connection status"""
     connected = _mqtt_publisher.is_connected() if _mqtt_publisher else False
     active_sessions = _event_session_mgr.get_active_session_count() if _event_session_mgr else 0
     return {
@@ -806,15 +806,15 @@ async def get_mqtt_status():
 
 @app.get("/api/go2rtc/streams")
 async def go2rtc_streams():
-    """返回所有已注册流的 go2rtc 播放器 URL 映射"""
+    """Return go2rtc player URL mapping for all registered streams"""
     if not _go2rtc_mgr or not _go2rtc_mgr.available:
-        return JSONResponse({"error": "go2rtc 未运行"}, status_code=503)
+        return JSONResponse({"error": "go2rtc not running"}, status_code=503)
     return _go2rtc_mgr.get_all_player_urls()
 
 
 @app.get("/api/go2rtc/status")
 async def go2rtc_status():
-    """返回 go2rtc 运行状态"""
+    """Return go2rtc running status"""
     if not _go2rtc_mgr:
         return {"running": False, "pid": None}
     running = _go2rtc_mgr.is_running()
@@ -822,11 +822,11 @@ async def go2rtc_status():
     return {"running": running, "pid": pid}
 
 
-# ── go2rtc 反向代理 ──
+# ── go2rtc Reverse Proxy ──
 
 @app.api_route("/go2rtc/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
 async def go2rtc_http_proxy(path: str, request: Request):
-    """HTTP 反向代理到 go2rtc（静态资源 + REST API）"""
+    """HTTP reverse proxy to go2rtc (static assets + REST API)"""
     target_url = f"{_GO2RTC_BASE_URL}/{path}"
     async with httpx.AsyncClient() as client:
         try:
@@ -846,15 +846,15 @@ async def go2rtc_http_proxy(path: str, request: Request):
                 media_type=resp.headers.get("content-type"),
             )
         except httpx.ConnectError:
-            return JSONResponse({"error": "go2rtc 未运行"}, status_code=503)
+            return JSONResponse({"error": "go2rtc not running"}, status_code=503)
 
 
 @app.websocket("/go2rtc/ws")
 async def go2rtc_ws_proxy(websocket: WebSocket):
-    """WebSocket 反向代理到 go2rtc /api/ws（双向中继）"""
+    """WebSocket reverse proxy to go2rtc /api/ws (bidirectional relay)"""
     await websocket.accept()
 
-    # 构建目标 URL（保留查询参数）
+    # Build target URL (preserve query parameters)
     query_string = str(websocket.scope.get("query_string", b""), "utf-8")
     target_url = f"{_GO2RTC_WS_URL}/api/ws"
     if query_string:
@@ -885,7 +885,7 @@ async def go2rtc_ws_proxy(websocket: WebSocket):
                 except (WebSocketDisconnect, Exception):
                     pass
 
-            # 双向中继：同时运行两个方向的转发
+            # Bidirectional relay: run both directions simultaneously
             done, pending = await asyncio.wait(
                 [
                     asyncio.create_task(client_to_upstream()),
@@ -896,7 +896,7 @@ async def go2rtc_ws_proxy(websocket: WebSocket):
             for task in pending:
                 task.cancel()
     except Exception as e:
-        logger.warning(f"go2rtc WebSocket 代理连接失败: {e}")
+        logger.warning(f"go2rtc WebSocket proxy connection failed: {e}")
     finally:
         try:
             await websocket.close()
@@ -904,13 +904,13 @@ async def go2rtc_ws_proxy(websocket: WebSocket):
             pass
 
 
-# ── Detection WebSocket 端点 ──
+# ── Detection WebSocket Endpoint ──
 
 @app.websocket("/ws/detections/{camera_id}")
 async def ws_detections(websocket: WebSocket, camera_id: str):
-    """实时推送指定摄像头的检测框数据"""
+    """Push detection box data for specified camera in real-time"""
     await websocket.accept()
-    # 添加到该 camera_id 的客户端列表
+    # Add to client list for this camera_id
     if camera_id not in _detection_ws_clients:
         _detection_ws_clients[camera_id] = []
     _detection_ws_clients[camera_id].append(websocket)
@@ -925,7 +925,7 @@ async def ws_detections(websocket: WebSocket, camera_id: str):
             clients.remove(websocket)
 
 
-# ── WebSocket 事件推送 ──
+# ── WebSocket Event Push ──
 
 @app.websocket("/ws/events")
 async def ws_events(websocket: WebSocket):
@@ -941,15 +941,15 @@ async def ws_events(websocket: WebSocket):
             _ws_clients.remove(websocket)
 
 
-# ── 前端静态资源托管 ──
-# 必须在所有 API 路由和 WebSocket 端点之后挂载，确保 API 路由优先级更高
-# 使用自定义包装器过滤 WebSocket 请求，避免 StaticFiles 收到 WS 协议报错
+# ── Frontend Static Asset Hosting ──
+# Must be mounted after all API routes and WebSocket endpoints to ensure API route priority
+# Uses custom wrapper to filter WebSocket requests, preventing StaticFiles from receiving WS protocol errors
 if FRONTEND_DIR.exists():
     _frontend_static = StaticFiles(directory=str(FRONTEND_DIR), html=True)
 
     async def _frontend_app(scope, receive, send):
         if scope["type"] != "http":
-            # WebSocket 等非 HTTP 请求直接返回 404，不传给 StaticFiles
+            # Non-HTTP requests (WebSocket etc.) return 404 directly, not passed to StaticFiles
             from starlette.responses import Response as _Resp
             response = _Resp(status_code=404)
             await response(scope, receive, send)

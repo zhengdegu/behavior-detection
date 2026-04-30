@@ -1,5 +1,5 @@
 """
-跌倒检测 — bbox 宽高比突变 + Pose 姿态增强（头低于臀部）
+Fall detection — bbox aspect ratio sudden change + Pose enhancement (head below hips)
 """
 
 import time
@@ -28,7 +28,7 @@ class FallRule(BaseAnomalyRule):
 
     @staticmethod
     def _pose_is_fallen(kp) -> bool:
-        """通过关键点判断是否跌倒：头部 Y > 臀部 Y → 倒地"""
+        """Determine fall via keypoints: head Y > hip Y → fallen"""
         import numpy as _np
 
         head_pts = []
@@ -50,7 +50,7 @@ class FallRule(BaseAnomalyRule):
         if head_y > hip_y:
             return True
 
-        # 额外：躯干接近水平
+        # Additional: torso nearly horizontal
         shoulder_pts = [kp[i][:2] for i in [5, 6] if kp[i][2] > 0.3]
         ankle_pts = [kp[i][:2] for i in [15, 16] if kp[i][2] > 0.3]
 
@@ -100,18 +100,18 @@ class FallRule(BaseAnomalyRule):
 
             if pose_fallen:
                 is_fall = True
-                detail = "疑似跌倒：姿态异常(头低于臀) [Pose增强]"
+                detail = "Suspected fall: abnormal posture (head below hips) [Pose enhanced]"
             elif ratio > 1.3:
                 is_fall = True
-                detail = f"疑似跌倒：横躺姿态(宽高比{ratio:.2f}) [静态检测]"
+                detail = f"Suspected fall: lying posture (aspect ratio {ratio:.2f}) [static detection]"
             elif prev_ratio is not None and prev_center is not None:
                 ratio_change = ratio - prev_ratio
                 y_drop = det.center[1] - prev_center[1]
                 is_fall = (ratio > self.ratio_threshold
                            and ratio_change > self.min_ratio_change
                            and y_drop > self.min_y_drop)
-                detail = (f"疑似跌倒：宽高比{ratio:.2f}"
-                          f"(变化+{ratio_change:.2f})，下移{y_drop:.0f}px")
+                detail = (f"Suspected fall: aspect ratio {ratio:.2f}"
+                          f" (change +{ratio_change:.2f}), dropped {y_drop:.0f}px")
             else:
                 continue
 
@@ -128,7 +128,7 @@ class FallRule(BaseAnomalyRule):
                     "detail": detail,
                     "timestamp": now,
                 })
-                logger.info(f"[跌倒] cam={camera_id} track={det.track_id} "
+                logger.info(f"[Fall] cam={camera_id} track={det.track_id} "
                             f"pose={'Y' if pose_fallen else 'N'}")
 
         return events

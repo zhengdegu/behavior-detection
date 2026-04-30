@@ -134,7 +134,7 @@ export default function Go2RTCPlayer({
         className={`flex flex-col items-center justify-center bg-[#111827] text-t3 text-[11px] gap-1.5 ${className ?? ''}`}
       >
         <Video size={40} strokeWidth={1.5} className="text-hover" />
-        <span className="text-[#374151]">视频连接失败</span>
+        <span className="text-[#374151]">Video connection failed</span>
       </div>
     )
   }

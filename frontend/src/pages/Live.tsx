@@ -86,7 +86,7 @@ export default function Live() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[60vh] text-t3 text-sm">
-        加载中...
+        Loading...
       </div>
     )
   }
@@ -96,13 +96,13 @@ export default function Live() {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
         <Camera size={48} className="text-t3" strokeWidth={1.5} />
-        <p className="text-t2 text-sm">暂无摄像头配置</p>
+        <p className="text-t2 text-sm">No cameras configured</p>
         <Link
           to="/config"
           className="flex items-center gap-2 px-4 py-2 rounded-md bg-green text-bg text-sm font-semibold cursor-pointer hover:opacity-85 transition-opacity"
         >
           <Settings size={14} />
-          前往 Config 页添加摄像头
+          Go to Config page to add cameras
         </Link>
       </div>
     )
@@ -114,7 +114,7 @@ export default function Live() {
       {wsStatus === 'disconnected' && (
         <div className="flex items-center gap-2 px-4 py-2 mb-3 rounded-lg bg-orange/10 border border-orange/20 text-orange text-xs font-medium">
           <AlertTriangle size={14} />
-          连接断开，重连中...
+          Disconnected, reconnecting...
         </div>
       )}
 
@@ -163,7 +163,7 @@ export default function Live() {
             {events.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-t3 text-[11px] gap-2">
                 <Activity size={24} strokeWidth={1.5} />
-                <span>暂无事件</span>
+                <span>No events</span>
               </div>
             ) : (
               events.map((event: DetectionEvent, index: number) => (

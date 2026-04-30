@@ -1,5 +1,5 @@
 """
-几何工具模块 — 多边形判定、线段交叉等基础运算。
+Geometry utility module — polygon containment, line intersection, and other basic operations.
 """
 
 from typing import List, Tuple
@@ -9,7 +9,7 @@ Polygon = List[Point]
 
 
 def point_in_polygon(point: Point, polygon: Polygon) -> bool:
-    """射线法判断点是否在多边形内"""
+    """Ray casting algorithm to determine if a point is inside a polygon"""
     x, y = point
     n = len(polygon)
     inside = False

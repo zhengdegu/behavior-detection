@@ -1,6 +1,6 @@
 """
-聚集检测 — 基于连通分量聚类
-构建邻接图 → BFS 找连通分量 → 群组人数超阈值即告警
+Crowd detection — based on connected component clustering
+Build adjacency graph → BFS find connected components → alert when group size exceeds threshold
 """
 
 import math
@@ -23,7 +23,7 @@ class CrowdRule(BaseAnomalyRule):
         self.radius = radius
 
     def _find_clusters(self, person_dets: list) -> List[List[int]]:
-        """BFS 找连通分量"""
+        """BFS find connected components"""
         n = len(person_dets)
         adj: Dict[int, List[int]] = defaultdict(list)
         for i in range(n):
@@ -94,10 +94,10 @@ class CrowdRule(BaseAnomalyRule):
                     "center": (cx, cy),
                     "bbox": bbox,
                     "track_ids": tids,
-                    "detail": f"聚集告警：{count}人在半径{self.radius:.0f}px内聚集",
+                    "detail": f"Crowd alert: {count} people gathered within {self.radius:.0f}px radius",
                     "timestamp": now,
                 })
-                logger.info(f"[聚集] cam={camera_id} count={count} tids={tids}")
+                logger.info(f"[Crowd] cam={camera_id} count={count} tids={tids}")
                 break
 
         return events

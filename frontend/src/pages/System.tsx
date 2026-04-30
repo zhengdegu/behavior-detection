@@ -64,7 +64,7 @@ export default function System() {
       const sts = await getMQTTStatus()
       setMqttStatus(sts)
     } catch (e: unknown) {
-      setMqttError(e instanceof Error ? e.message : '保存失败')
+      setMqttError(e instanceof Error ? e.message : 'Save failed')
     } finally {
       setMqttSaving(false)
     }
@@ -73,7 +73,7 @@ export default function System() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[60vh] text-t3 text-sm">
-        加载中...
+        Loading...
       </div>
     )
   }
@@ -131,7 +131,7 @@ export default function System() {
       {cameras.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-t3 text-sm gap-3">
           <Cpu size={36} strokeWidth={1.5} />
-          <span>暂无摄像头数据</span>
+          <span>No camera data</span>
         </div>
       ) : (
         <div className="overflow-x-auto">
@@ -196,7 +196,7 @@ export default function System() {
         </div>
       )}
 
-      {/* ── MQTT 配置 ── */}
+      {/* ── MQTT Configuration ── */}
       <div className="mt-5 bg-bg2 rounded-lg border border-border p-4">
         <div className="flex items-center justify-between mb-3.5">
           <div className="flex items-center gap-2">

@@ -1,5 +1,5 @@
 """
-配置模型 — Pydantic v2
+Configuration models — Pydantic v2
 """
 
 from __future__ import annotations

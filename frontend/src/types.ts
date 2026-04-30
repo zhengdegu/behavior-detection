@@ -1,11 +1,11 @@
-// ── 检测配置 ──
+// ── Detection Config ──
 
 export interface DetectConfig {
   fps: number;
   confidence: number;
 }
 
-// ── 检测规则 ──
+// ── Detection Rules ──
 
 export interface CrowdConfig {
   enabled: boolean;
@@ -39,7 +39,7 @@ export interface RulesConfig {
   fall: FallConfig;
 }
 
-// ── 摄像头 ──
+// ── Camera ──
 
 export interface Camera {
   id: string;
@@ -67,7 +67,7 @@ export interface UpdateCameraRequest {
   mqtt_publish?: CameraMQTTPublishConfig;
 }
 
-// ── 检测事件 ──
+// ── Detection Events ──
 
 export interface DetectionEvent {
   type: string;
@@ -81,7 +81,7 @@ export interface DetectionEvent {
   bbox?: number[][];
 }
 
-// ── 系统状态 ──
+// ── System Status ──
 
 export interface SystemStatus {
   cameras: number;
@@ -89,7 +89,7 @@ export interface SystemStatus {
   uptime: number;
 }
 
-// ── 事件查询参数 ──
+// ── Event Query Params ──
 
 export interface EventQueryParams {
   sub_type?: string;
@@ -97,7 +97,7 @@ export interface EventQueryParams {
   limit?: number;
 }
 
-// ── 视频分析 ──
+// ── Video Analysis ──
 
 export type AnalysisTaskStatus =
   | 'waiting_config'
@@ -126,7 +126,7 @@ export interface AnalysisTask {
   stats?: AnalysisStats;
 }
 
-// ── MQTT 配置 ──
+// ── MQTT Config ──
 
 export interface MQTTConfig {
   host: string;

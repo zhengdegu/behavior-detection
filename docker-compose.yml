@@ -6,8 +6,8 @@ services:
       args:
         BUILD_TYPE: cpu
     ports:
-      - "8000:8000"    # FastAPI（前端 + 后端 + go2rtc 代理）
+      - "8000:8000"    # FastAPI (frontend + backend + go2rtc proxy)
     volumes:
-      - ./backend/data:/app/data          # 数据库、模型、事件截图、视频
-      - ./backend/configs:/app/configs    # YAML 配置（仅首次迁移用）
+      - ./backend/data:/app/data          # Database, models, event screenshots, videos
+      - ./backend/configs:/app/configs    # YAML config (for initial migration only)
     restart: unless-stopped

@@ -87,7 +87,7 @@ async function del<T>(path: string): Promise<T> {
 
 // ── API methods ──
 
-// 摄像头
+// Cameras
 export function getCameras(): Promise<Camera[]> {
   return get<Camera[]>('/api/cameras');
 }
@@ -111,7 +111,7 @@ export function getCameraSnapshot(id: string): string {
   return `${BASE_URL}/api/cameras/${id}/snapshot`;
 }
 
-// 事件
+// Events
 export function getEvents(
   params?: EventQueryParams,
 ): Promise<DetectionEvent[]> {
@@ -124,12 +124,12 @@ export function getEvents(
   return get<DetectionEvent[]>(`/api/events${qs ? `?${qs}` : ''}`);
 }
 
-// 系统状态
+// System status
 export function getStatus(): Promise<SystemStatus> {
   return get<SystemStatus>('/api/status');
 }
 
-// 视频分析
+// Video analysis
 export function uploadVideo(file: File): Promise<AnalysisTask> {
   const formData = new FormData();
   formData.append('file', file);
@@ -169,7 +169,7 @@ export function getGo2RTCStatus(): Promise<{ running: boolean; pid: number | nul
   return get<{ running: boolean; pid: number | null }>('/api/go2rtc/status');
 }
 
-// MQTT 配置
+// MQTT config
 export function getMQTTConfig(): Promise<MQTTConfig> {
   return get<MQTTConfig>('/api/mqtt/config');
 }

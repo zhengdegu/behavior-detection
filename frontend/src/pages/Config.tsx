@@ -106,7 +106,7 @@ export default function Config() {
       setShowAddForm(false)
       await fetchCameras()
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : '添加失败')
+      setError(e instanceof Error ? e.message : 'Add failed')
     }
   }
 
@@ -119,7 +119,7 @@ export default function Config() {
       if (selectedId === id) setSelectedId(null)
       await fetchCameras()
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : '删除失败')
+      setError(e instanceof Error ? e.message : 'Delete failed')
     }
   }
 
@@ -133,7 +133,7 @@ export default function Config() {
       await updateCamera(selectedId, { name: editName, url: editUrl, roi: editRoi, rules: editRules, mqtt_publish: editMqttPublish })
       await fetchCameras()
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : '保存失败')
+      setError(e instanceof Error ? e.message : 'Save failed')
     } finally {
       setSaving(false)
     }
