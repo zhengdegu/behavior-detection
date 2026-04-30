@@ -824,32 +824,27 @@ async def go2rtc_status():
 
 # ── go2rtc Reverse Proxy ──
 
-@app.api_route("/go2rtc/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
-async def go2rtc_http_proxy(path: str, request: Request):
-    """HTTP reverse proxy to go2rtc (static assets + REST API)"""
-    target_url = f"{_GO2RTC_BASE_URL}/{path}"
+# go2rtc's video-rtc.js imports video-stream.js with a relative path.
+# When loaded from /go2rtc/video-rtc.js, the browser resolves it as /video-stream.js (root).
+# This route proxies root-level go2rtc JS files to the internal go2rtc server.
+@app.api_route("/video-stream.js", methods=["GET"])
+@app.api_route("/video-rtc.js", methods=["GET"])
+async def go2rtc_root_js(request: Request):
+    """Proxy go2rtc JS files requested at root level (relative import resolution)"""
+    path = request.url.path.lstrip("/")
     async with httpx.AsyncClient() as client:
         try:
-            body = await request.body()
-            resp = await client.request(
-                method=request.method,
-                url=target_url,
-                params=dict(request.query_params),
-                content=body if body else None,
-                headers={k: v for k, v in request.headers.items()
-                         if k.lower() not in ("host", "connection")},
-                timeout=10.0,
-            )
+            resp = await client.get(f"{_GO2RTC_BASE_URL}/{path}", timeout=10.0)
             return Response(
                 content=resp.content,
                 status_code=resp.status_code,
-                media_type=resp.headers.get("content-type"),
+                media_type=resp.headers.get("content-type", "application/javascript"),
             )
         except httpx.ConnectError:
             return JSONResponse({"error": "go2rtc not running"}, status_code=503)
 
 
-@app.websocket("/go2rtc/ws")
+@app.websocket("/go2rtc/api/ws")
 async def go2rtc_ws_proxy(websocket: WebSocket):
     """WebSocket reverse proxy to go2rtc /api/ws (bidirectional relay)"""
     await websocket.accept()
@@ -902,6 +897,31 @@ async def go2rtc_ws_proxy(websocket: WebSocket):
             await websocket.close()
         except Exception:
             pass
+
+
+@app.api_route("/go2rtc/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
+async def go2rtc_http_proxy(path: str, request: Request):
+    """HTTP reverse proxy to go2rtc (static assets + REST API)"""
+    target_url = f"{_GO2RTC_BASE_URL}/{path}"
+    async with httpx.AsyncClient() as client:
+        try:
+            body = await request.body()
+            resp = await client.request(
+                method=request.method,
+                url=target_url,
+                params=dict(request.query_params),
+                content=body if body else None,
+                headers={k: v for k, v in request.headers.items()
+                         if k.lower() not in ("host", "connection")},
+                timeout=10.0,
+            )
+            return Response(
+                content=resp.content,
+                status_code=resp.status_code,
+                media_type=resp.headers.get("content-type"),
+            )
+        except httpx.ConnectError:
+            return JSONResponse({"error": "go2rtc not running"}, status_code=503)
 
 
 # ── Detection WebSocket Endpoint ──
