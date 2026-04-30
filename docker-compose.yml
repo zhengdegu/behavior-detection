@@ -7,6 +7,7 @@ services:
         BUILD_TYPE: cpu
     ports:
       - "8000:8000"    # FastAPI (frontend + backend + go2rtc proxy)
+      - "1988:1984"    # go2rtc (WebRTC/MSE video streaming)
     volumes:
       - ./backend/data:/app/data          # Database, models, event screenshots, videos
       - ./backend/configs:/app/configs    # YAML config (for initial migration only)

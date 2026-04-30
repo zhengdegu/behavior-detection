@@ -110,9 +110,13 @@ export default function Go2RTCPlayer({
       })
       observer.observe(el, { childList: true, subtree: true })
 
-      // Build WebSocket URL — Vite proxy rewrites /go2rtc/* to go2rtc's /*
+      // Build go2rtc URL — connect directly to go2rtc port (1984)
+      // In production (Docker), go2rtc runs on the same host, port 1984
+      // In development, Vite proxy forwards /go2rtc/* to localhost:1984
+      const go2rtcPort = import.meta.env.VITE_GO2RTC_PORT || '1988'
       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const wsUrl = `${wsProtocol}//${window.location.host}/go2rtc/api/ws?src=${encodeURIComponent(src)}`
+      const go2rtcHost = window.location.hostname
+      const wsUrl = `${wsProtocol}//${go2rtcHost}:${go2rtcPort}/api/ws?src=${encodeURIComponent(src)}`
       el.src = wsUrl
     }
 
