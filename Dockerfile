@@ -26,17 +26,17 @@ ADD --chmod=755 \
 
 WORKDIR /app
 
-# ── PyTorch（通过 BUILD_TYPE 参数选择 GPU 或 CPU 版本）──
+# ── Python 依赖（先安装，ultralytics 会拉 CPU 版 torch）──
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# ── PyTorch（最后安装，覆盖 ultralytics 拉的 CPU 版）──
 ARG BUILD_TYPE=cpu
 RUN if [ "$BUILD_TYPE" = "gpu" ]; then \
       pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cu124; \
     else \
       pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu; \
     fi
-
-# ── Python 依赖 ──
-COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
 
 # ── 应用代码 ──
 COPY backend/src/ src/
