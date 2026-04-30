@@ -51,7 +51,7 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
 # CPU 版（推荐，体积小）
 docker pull ghcr.io/zhengdegu/behavior-detection:latest
 
-# GPU 版（CUDA 12.4，需要 nvidia-container-toolkit）
+# GPU 版（CUDA 12.8，需要 nvidia-container-toolkit）
 docker pull ghcr.io/zhengdegu/behavior-detection:gpu
 ```
 
@@ -99,6 +99,37 @@ docker compose up -d
 ```
 
 > **说明：** CPU 模式下推理速度较慢，建议降低检测 FPS（如设为 1-2）以减少 CPU 负载。GPU 模式需要安装 [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)。
+
+### Docker Run 直接启动
+
+如果不使用 docker-compose，可以直接用 `docker run`：
+
+**无 GPU：**
+
+```bash
+docker run -d \
+  --name behavior-detection \
+  -p 8000:8000 \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/configs:/app/configs \
+  --restart unless-stopped \
+  ghcr.io/zhengdegu/behavior-detection:latest
+```
+
+**有 NVIDIA GPU：**
+
+```bash
+docker run -d \
+  --gpus all \
+  --name behavior-detection \
+  -p 8000:8000 \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/configs:/app/configs \
+  --restart unless-stopped \
+  ghcr.io/zhengdegu/behavior-detection:gpu
+```
+
+> Windows PowerShell 需要将 `$(pwd)` 替换为 `${PWD}`。
 
 ### 本地开发
 
