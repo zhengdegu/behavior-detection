@@ -22,7 +22,7 @@ ARG TARGETARCH=amd64
 ARG GO2RTC_VERSION=1.9.14
 ADD --chmod=755 \
     https://github.com/AlexxIT/go2rtc/releases/download/v${GO2RTC_VERSION}/go2rtc_linux_${TARGETARCH} \
-    /app/data/go2rtc
+    /usr/local/bin/go2rtc
 
 WORKDIR /app
 
@@ -33,7 +33,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # ── PyTorch（最后安装，覆盖 ultralytics 拉的 CPU 版）──
 ARG BUILD_TYPE=cpu
 RUN if [ "$BUILD_TYPE" = "gpu" ]; then \
-      pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cu124; \
+      pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cu126; \
     else \
       pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu; \
     fi
