@@ -30,12 +30,12 @@ WORKDIR /app
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# ── PyTorch（最后安装，覆盖 ultralytics 拉的 CPU 版）──
+# ── PyTorch（最后安装，强制覆盖 ultralytics 拉的默认版）──
 ARG BUILD_TYPE=cpu
 RUN if [ "$BUILD_TYPE" = "gpu" ]; then \
-      pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cu128; \
+      pip install --no-cache-dir --force-reinstall torch torchvision --index-url https://download.pytorch.org/whl/cu128; \
     else \
-      pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu; \
+      pip install --no-cache-dir --force-reinstall torch torchvision --index-url https://download.pytorch.org/whl/cpu; \
     fi
 
 # ── 应用代码 ──
