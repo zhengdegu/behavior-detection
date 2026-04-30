@@ -66,6 +66,7 @@ services:
     image: ghcr.io/zhengdegu/behavior-detection:latest
     ports:
       - "8000:8000"
+      - "1988:1984"
     volumes:
       - ./data:/app/data
       - ./configs:/app/configs
@@ -81,6 +82,7 @@ services:
     image: ghcr.io/zhengdegu/behavior-detection:gpu
     ports:
       - "8000:8000"
+      - "1988:1984"
     volumes:
       - ./data:/app/data
       - ./configs:/app/configs
@@ -110,6 +112,7 @@ If not using docker-compose, you can start directly with `docker run`:
 docker run -d \
   --name behavior-detection \
   -p 8000:8000 \
+  -p 1988:1984 \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/configs:/app/configs \
   --restart unless-stopped \
@@ -123,6 +126,7 @@ docker run -d \
   --gpus all \
   --name behavior-detection \
   -p 8000:8000 \
+  -p 1988:1984 \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/configs:/app/configs \
   --restart unless-stopped \
@@ -315,10 +319,9 @@ behavior-detection/
 
 ## Port Information
 
-The system exposes only one port externally:
-
 | Port | Description |
 |------|-------------|
-| 8000 | FastAPI (frontend + backend API + go2rtc proxy) |
+| 8000 | FastAPI (frontend + backend API + event screenshots) |
+| 1988 | go2rtc (WebRTC/MSE video streaming, mapped from internal 1984) |
 
-go2rtc's ports 1984 (API) and 8555 (RTSP) are used internally within the container only. All requests are forwarded through the FastAPI reverse proxy.
+The frontend connects directly to go2rtc on port 1988 for live video streaming. Port 8555 (go2rtc RTSP restream) is used internally within the container only.
