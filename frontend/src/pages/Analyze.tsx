@@ -8,12 +8,14 @@ import {
   LayoutGrid,
   Clock,
   Activity,
+  Trash2,
 } from 'lucide-react'
 import type { AnalysisTask, DetectionEvent } from '../types'
 import {
   uploadVideo,
   getAnalysisTasks,
   startAnalysis,
+  deleteAnalysisTask,
   getTaskFirstFrameUrl,
   getTaskVideoUrl,
 } from '../api'
@@ -166,6 +168,19 @@ export default function Analyze() {
     }
   }
 
+  // ── Delete task ──
+
+  const handleDelete = async (taskId: string) => {
+    setError(null)
+    try {
+      await deleteAnalysisTask(taskId)
+      if (selectedId === taskId) setSelectedId(null)
+      await fetchTasks()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Delete failed')
+    }
+  }
+
   // ── Seek video to timestamp ──
 
   const seekToTime = (timestamp: string) => {
@@ -239,9 +254,19 @@ export default function Analyze() {
               }`}
             >
               <div className="task-row flex items-center gap-1.5 mb-0.5">
-                <span className="task-name text-xs font-medium text-t1 truncate">
+                <span className="task-name text-xs font-medium text-t1 truncate flex-1">
                   {task.filename}
                 </span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleDelete(task.id)
+                  }}
+                  className="text-t3 hover:text-red cursor-pointer transition-colors duration-150 flex-shrink-0"
+                  aria-label={`Delete task ${task.filename}`}
+                >
+                  <Trash2 size={12} />
+                </button>
               </div>
               <div className="task-meta flex justify-between text-[10px] text-t3">
                 <span className={statusColor(task.status)}>
