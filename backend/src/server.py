@@ -459,7 +459,7 @@ def _run_video_analysis(task_id: str):
         mc = _model_config or {}
         detector = YOLODetector(
             model_path=mc.get("detector_path", "data/models/yolo26m.pt"),
-            confidence=mc.get("confidence", 0.5),
+            confidence=mc.get("confidence", 0.3),
             tracker_config=mc.get("tracker_config", "bytetrack.yaml"),
         )
 
@@ -468,10 +468,10 @@ def _run_video_analysis(task_id: str):
         rules_cfg = task.get("rules") or {
             "crowd": {"enabled": True, "max_count": 3, "radius": 300,
                       "confirm_frames": 3, "cooldown": 10},
-            "fight": {"enabled": True, "proximity_radius": 200, "min_speed": 30,
-                      "min_persons": 2, "confirm_frames": 2, "cooldown": 10},
-            "fall": {"enabled": True, "ratio_threshold": 0.8, "min_ratio_change": 0.3,
-                     "min_y_drop": 10, "confirm_frames": 2, "cooldown": 10},
+            "fight": {"enabled": True, "proximity_radius": 300, "min_speed": 15,
+                      "min_persons": 2, "confirm_frames": 1, "cooldown": 5},
+            "fall": {"enabled": True, "ratio_threshold": 0.6, "min_ratio_change": 0.15,
+                     "min_y_drop": 5, "confirm_frames": 1, "cooldown": 5},
         }
         engine = BehaviorEngine(rules_cfg, roi=roi if roi else None)
         logger.info(f"[VideoAnalysis] Task {task_id} rules config: {rules_cfg}")
