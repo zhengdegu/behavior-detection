@@ -90,25 +90,6 @@ export default function Go2RTCPlayer({
       el.style.height = '100%'
       el.style.display = 'block'
 
-      container.appendChild(el)
-      elementRef.current = el
-
-      // Wait for the internal video element to appear, then set src
-      const observer = new MutationObserver(() => {
-        const video = el.querySelector('video')
-        if (video) {
-          video.style.objectFit = 'cover'
-          video.addEventListener('loadeddata', () => {
-            if (!cancelled) {
-              setError(false)
-              onVideoReady?.(video)
-            }
-          })
-          observer.disconnect()
-        }
-      })
-      observer.observe(el, { childList: true, subtree: true })
-
       // Production (Docker): use backend reverse proxy at /go2rtc/api/ws (same origin)
       // Development (Vite): connect directly to go2rtc port
       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -123,7 +104,30 @@ export default function Go2RTCPlayer({
         // Production: use backend reverse proxy (same host:port, works on any mapped port)
         wsUrl = `${wsProtocol}//${window.location.host}/go2rtc/api/ws?src=${encodeURIComponent(src)}`
       }
-      el.src = wsUrl
+
+      // Set mode and src as attributes BEFORE appending to DOM
+      // Use MSE+WebRTC: MSE works over WebSocket (no UDP needed), WebRTC for lowest latency
+      el.setAttribute('mode', 'mse,webrtc')
+      el.setAttribute('src', wsUrl)
+
+      container.appendChild(el)
+      elementRef.current = el
+
+      // Wait for the internal video element to appear
+      const observer = new MutationObserver(() => {
+        const video = el.querySelector('video')
+        if (video) {
+          video.style.objectFit = 'cover'
+          video.addEventListener('loadeddata', () => {
+            if (!cancelled) {
+              setError(false)
+              onVideoReady?.(video)
+            }
+          })
+          observer.disconnect()
+        }
+      })
+      observer.observe(el, { childList: true, subtree: true })
     }
 
     init()
