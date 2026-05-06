@@ -85,10 +85,7 @@ export default function Go2RTCPlayer({
       if (!container) return
 
       // Create the <video-rtc> custom element
-      const el = document.createElement('video-rtc') as HTMLElement & { src: string; mode: string }
-      // Force WebRTC mode for lowest latency (fallback to MSE if ICE fails)
-      el.mode = 'webrtc'
-      // Set src via property (triggers the setter which starts connection)
+      const el = document.createElement('video-rtc') as HTMLElement & { src: string }
       el.style.width = '100%'
       el.style.height = '100%'
       el.style.display = 'block'
