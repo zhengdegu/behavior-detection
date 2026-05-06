@@ -105,11 +105,7 @@ export default function Go2RTCPlayer({
         wsUrl = `${wsProtocol}//${window.location.host}/go2rtc/api/ws?src=${encodeURIComponent(src)}`
       }
 
-      // Set mode and src as attributes BEFORE appending to DOM
-      // Use MSE+WebRTC: MSE works over WebSocket (no UDP needed), WebRTC for lowest latency
-      el.setAttribute('mode', 'mse,webrtc')
-      el.setAttribute('src', wsUrl)
-
+      // Append to DOM first, then set src property (VideoRTC needs to be connected)
       container.appendChild(el)
       elementRef.current = el
 
@@ -128,6 +124,9 @@ export default function Go2RTCPlayer({
         }
       })
       observer.observe(el, { childList: true, subtree: true })
+
+      // Set src via property AFTER element is in DOM (triggers WebSocket connection)
+      el.src = wsUrl
     }
 
     init()
