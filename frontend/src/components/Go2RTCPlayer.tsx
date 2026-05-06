@@ -23,9 +23,9 @@ export default function Go2RTCPlayer({
   let playerUrl: string
   if (isDev) {
     const go2rtcPort = import.meta.env.VITE_GO2RTC_PORT || '1984'
-    playerUrl = `http://${window.location.hostname}:${go2rtcPort}/stream.html?src=${encodeURIComponent(src)}&mode=webrtc`
+    playerUrl = `http://${window.location.hostname}:${go2rtcPort}/stream.html?src=${encodeURIComponent(src)}&mode=webrtc,mse`
   } else {
-    playerUrl = `/go2rtc/stream.html?src=${encodeURIComponent(src)}&mode=webrtc`
+    playerUrl = `/go2rtc/stream.html?src=${encodeURIComponent(src)}&mode=webrtc,mse`
   }
 
   return (

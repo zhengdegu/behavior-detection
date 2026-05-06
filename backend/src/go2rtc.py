@@ -249,46 +249,34 @@ class Go2RTCManager:
         self._save_config(config)
 
     def _ensure_config(self):
-        """Ensure go2rtc config file exists"""
-        if os.path.isfile(self.config_path):
-            # Ensure existing config includes origin and webrtc settings
-            config = self._load_config()
-            changed = False
-            api_cfg = config.get("api", {})
-            if "origin" not in api_cfg:
-                api_cfg["origin"] = "*"
-                config["api"] = api_cfg
-                changed = True
-            # Add webrtc candidates from environment variable
-            webrtc_candidates = os.environ.get("GO2RTC_WEBRTC_CANDIDATES", "")
-            if webrtc_candidates:
-                candidates = [c.strip() for c in webrtc_candidates.split(",") if c.strip()]
-                config.setdefault("webrtc", {})
-                config["webrtc"]["listen"] = ":8555"
-                config["webrtc"]["candidates"] = candidates
-                changed = True
-            elif "webrtc" not in config:
-                # Ensure webrtc section exists with STUN fallback
-                config["webrtc"] = {"listen": ":8555", "candidates": ["stun:8555"]}
-                changed = True
-            if changed:
-                self._save_config(config)
-            return
-
-        # Build webrtc candidates from env
-        webrtc_cfg = {}
+        """Ensure go2rtc config file exists and has correct port settings.
+        
+        Always enforces:
+        - rtsp.listen = :8554 (avoid conflict with WebRTC)
+        - webrtc.listen = :8555
+        - webrtc.candidates from env or STUN fallback
+        - api.origin = '*'
+        """
+        config = self._load_config() if os.path.isfile(self.config_path) else {}
+        
+        # Always enforce correct port settings
+        config.setdefault("api", {})
+        config["api"]["listen"] = ":1984"
+        config["api"]["origin"] = "*"
+        
+        config["rtsp"] = {"listen": f":{self.rtsp_port}"}
+        
+        # WebRTC: use env candidates or STUN fallback
         webrtc_candidates = os.environ.get("GO2RTC_WEBRTC_CANDIDATES", "")
         if webrtc_candidates:
             candidates = [c.strip() for c in webrtc_candidates.split(",") if c.strip()]
-            webrtc_cfg = {"candidates": candidates}
-
-        config = {
-            "streams": {},
-            "rtsp": {"listen": f":{self.rtsp_port}"},
-            "api": {"listen": ":1984", "origin": "*"},
-            "webrtc": {"listen": ":8555", "candidates": webrtc_cfg.get("candidates", ["stun:8555"])},
-            "log": {"level": "info"},
-        }
+        else:
+            candidates = config.get("webrtc", {}).get("candidates", ["stun:8555"])
+        config["webrtc"] = {"listen": ":8555", "candidates": candidates}
+        
+        config.setdefault("streams", {})
+        config.setdefault("log", {"level": "info"})
+        
         self._save_config(config)
 
     def _update_config_file(self, stream_name: str, rtsp_url: str):
@@ -301,7 +289,7 @@ class Go2RTCManager:
             stream_value = (
                 f"exec:ffmpeg -hide_banner -rtsp_transport tcp -timeout 10000000 "
                 f"-i {rtsp_url} -c:v libx264 -preset ultrafast -tune zerolatency "
-                f"-rtsp_transport tcp -f rtsp {{output}}"
+                f"-g 25 -rtsp_transport tcp -f rtsp {{output}}"
             )
         else:
             stream_value = rtsp_url
