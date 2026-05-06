@@ -238,18 +238,36 @@ class Go2RTCManager:
     def _ensure_config(self):
         """Ensure go2rtc config file exists"""
         if os.path.isfile(self.config_path):
-            # Ensure existing config includes origin setting
+            # Ensure existing config includes origin and webrtc settings
             config = self._load_config()
+            changed = False
             api_cfg = config.get("api", {})
             if "origin" not in api_cfg:
                 api_cfg["origin"] = "*"
                 config["api"] = api_cfg
+                changed = True
+            # Add webrtc candidates from environment variable
+            webrtc_candidates = os.environ.get("GO2RTC_WEBRTC_CANDIDATES", "")
+            if webrtc_candidates:
+                candidates = [c.strip() for c in webrtc_candidates.split(",") if c.strip()]
+                config["webrtc"] = {"candidates": candidates}
+                changed = True
+            if changed:
                 self._save_config(config)
             return
+
+        # Build webrtc candidates from env
+        webrtc_cfg = {}
+        webrtc_candidates = os.environ.get("GO2RTC_WEBRTC_CANDIDATES", "")
+        if webrtc_candidates:
+            candidates = [c.strip() for c in webrtc_candidates.split(",") if c.strip()]
+            webrtc_cfg = {"candidates": candidates}
+
         config = {
             "streams": {},
             "rtsp": {"listen": f":{self.rtsp_port}"},
             "api": {"listen": ":1984", "origin": "*"},
+            "webrtc": webrtc_cfg,
             "log": {"level": "info"},
         }
         self._save_config(config)
