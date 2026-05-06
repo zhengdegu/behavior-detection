@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 # go2rtc default configuration
 DEFAULT_GO2RTC_API = "http://127.0.0.1:1984"
-DEFAULT_GO2RTC_RTSP_PORT = 8555
+DEFAULT_GO2RTC_RTSP_PORT = 8554
 DEFAULT_GO2RTC_CONFIG = "data/go2rtc.yaml"
 
 
@@ -240,9 +240,12 @@ class Go2RTCManager:
         config = self._load_config()
         if candidates_str:
             candidates = [c.strip() for c in candidates_str.split(",") if c.strip()]
-            config["webrtc"] = {"candidates": candidates}
+            config.setdefault("webrtc", {})
+            config["webrtc"]["listen"] = ":8555"
+            config["webrtc"]["candidates"] = candidates
         else:
-            config.pop("webrtc", None)
+            # Keep listen but use STUN fallback
+            config["webrtc"] = {"listen": ":8555", "candidates": ["stun:8555"]}
         self._save_config(config)
 
     def _ensure_config(self):
@@ -260,7 +263,13 @@ class Go2RTCManager:
             webrtc_candidates = os.environ.get("GO2RTC_WEBRTC_CANDIDATES", "")
             if webrtc_candidates:
                 candidates = [c.strip() for c in webrtc_candidates.split(",") if c.strip()]
-                config["webrtc"] = {"candidates": candidates}
+                config.setdefault("webrtc", {})
+                config["webrtc"]["listen"] = ":8555"
+                config["webrtc"]["candidates"] = candidates
+                changed = True
+            elif "webrtc" not in config:
+                # Ensure webrtc section exists with STUN fallback
+                config["webrtc"] = {"listen": ":8555", "candidates": ["stun:8555"]}
                 changed = True
             if changed:
                 self._save_config(config)
@@ -277,7 +286,7 @@ class Go2RTCManager:
             "streams": {},
             "rtsp": {"listen": f":{self.rtsp_port}"},
             "api": {"listen": ":1984", "origin": "*"},
-            "webrtc": webrtc_cfg,
+            "webrtc": {"listen": ":8555", "candidates": webrtc_cfg.get("candidates", ["stun:8555"])},
             "log": {"level": "info"},
         }
         self._save_config(config)

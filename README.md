@@ -69,6 +69,10 @@ services:
     ports:
       - "8000:8000"
       - "1988:1984"
+      - "18555:8555/tcp"
+      - "18555:8555/udp"
+    environment:
+      - GO2RTC_WEBRTC_CANDIDATES=${SERVER_PUBLIC_IP:-}
     volumes:
       - ./data:/app/data
       - ./configs:/app/configs
@@ -85,6 +89,10 @@ services:
     ports:
       - "8000:8000"
       - "1988:1984"
+      - "18555:8555/tcp"
+      - "18555:8555/udp"
+    environment:
+      - GO2RTC_WEBRTC_CANDIDATES=${SERVER_PUBLIC_IP:-}
     volumes:
       - ./data:/app/data
       - ./configs:/app/configs
@@ -115,6 +123,9 @@ docker run -d \
   --name behavior-detection \
   -p 8000:8000 \
   -p 1988:1984 \
+  -p 18555:8555/tcp \
+  -p 18555:8555/udp \
+  -e GO2RTC_WEBRTC_CANDIDATES=你的公网IP:18555 \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/configs:/app/configs \
   --restart unless-stopped \
@@ -129,6 +140,9 @@ docker run -d \
   --name behavior-detection \
   -p 8000:8000 \
   -p 1988:1984 \
+  -p 18555:8555/tcp \
+  -p 18555:8555/udp \
+  -e GO2RTC_WEBRTC_CANDIDATES=你的公网IP:18555 \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/configs:/app/configs \
   --restart unless-stopped \
@@ -324,6 +338,38 @@ behavior-detection/
 | Port | Description |
 |------|-------------|
 | 8000 | FastAPI (frontend + backend API + event screenshots) |
-| 1988 | go2rtc (WebRTC/MSE video streaming, mapped from internal 1984) |
+| 1988 | go2rtc API/WebSocket (MSE fallback, mapped from internal 1984) |
+| 18555 | go2rtc WebRTC (TCP+UDP, mapped from internal 8555) |
 
-The frontend connects directly to go2rtc on port 1988 for live video streaming. Port 8555 (go2rtc RTSP restream) is used internally within the container only.
+The frontend connects directly to go2rtc on port 1988 for live video streaming. WebRTC uses port 18555 (UDP+TCP) for low-latency streaming. Port 8554 (go2rtc RTSP restream) is used internally within the container only.
+
+## WebRTC Low-Latency Deployment
+
+By default, the system uses WebRTC for video streaming (< 1 second latency). For WebRTC to work over the internet, you need to:
+
+### 1. Create `.env` file with your server's public IP
+
+```bash
+echo "SERVER_PUBLIC_IP=你的服务器公网IP:18555" > .env
+```
+
+### 2. Open firewall ports
+
+```bash
+# UFW example
+sudo ufw allow 18555/udp
+sudo ufw allow 18555/tcp
+
+# Or firewalld
+sudo firewall-cmd --permanent --add-port=18555/udp
+sudo firewall-cmd --permanent --add-port=18555/tcp
+sudo firewall-cmd --reload
+```
+
+### 3. Deploy
+
+```bash
+docker compose up -d --build
+```
+
+> If your network does not allow UDP (e.g., behind strict corporate firewall), the player will automatically fall back to MSE mode via WebSocket on port 1988 (higher latency, ~3-8 seconds).

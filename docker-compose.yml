@@ -7,7 +7,12 @@ services:
         BUILD_TYPE: cpu
     ports:
       - "8000:8000"    # FastAPI (frontend + backend + go2rtc proxy)
-      - "1988:1984"    # go2rtc (WebRTC/MSE video streaming)
+      - "1988:1984"    # go2rtc API/WebSocket (MSE fallback)
+      - "18555:8555/tcp"  # go2rtc WebRTC TCP
+      - "18555:8555/udp"  # go2rtc WebRTC UDP
+    environment:
+      # 设置为你的服务器公网IP，WebRTC ICE协商需要
+      - GO2RTC_WEBRTC_CANDIDATES=${SERVER_PUBLIC_IP:-}
     volumes:
       - ./backend/data:/app/data          # Database, models, event screenshots, videos
       - ./backend/configs:/app/configs    # YAML config (for initial migration only)

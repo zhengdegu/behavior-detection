@@ -48,8 +48,8 @@ COPY --from=build /build/dist /app/static/frontend
 # ── 数据目录（模型、数据库、事件截图等）──
 RUN mkdir -p data/models data/events data/uploads data/outputs
 
-# ── 端口：仅暴露 8000(FastAPI)，go2rtc 端口仅容器内部使用 ──
-EXPOSE 8000
+# ── 端口：暴露 8000(FastAPI) + 8555(WebRTC) ──
+EXPOSE 8000 8555/tcp 8555/udp
 
 ENV NVIDIA_VISIBLE_DEVICES=all
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
