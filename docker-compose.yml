@@ -7,7 +7,7 @@ services:
         BUILD_TYPE: cpu
     ports:
       - "18000:18000"   # FastAPI (frontend + backend + go2rtc proxy)
-      - "1988:1984"    # go2rtc API/WebSocket (MSE fallback)
+      - "11984:1984"   # go2rtc API/WebSocket
       - "18555:8555/tcp"  # go2rtc WebRTC TCP
       - "18555:8555/udp"  # go2rtc WebRTC UDP
     environment:

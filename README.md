@@ -1,4 +1,4 @@
-# Behavior Detection System
+﻿# Behavior Detection System
 
 Real-time video behavior detection system supporting **crowd detection**, **fight detection**, and **fall detection**. Frontend and backend are packaged into a single Docker image with MQTT event push to third-party systems.
 
@@ -12,16 +12,16 @@ Real-time video behavior detection system supporting **crowd detection**, **figh
 | Fight Detection | Multiple people in close proximity + high-speed motion + Pose enhancement (wrist punching features) |
 | Fall Detection | Bbox aspect ratio sudden change + Pose enhancement (head below hips) |
 | Video Analysis | Upload video files for offline analysis, generates annotated video and event reports |
-| MQTT Push | Event lifecycle (triggered → updating → resolved) push to external systems |
+| MQTT Push | Event lifecycle (triggered 鈫?updating 鈫?resolved) push to external systems |
 | Live Preview | Low-latency camera preview via go2rtc WebRTC/MSE |
 
 ## Tech Stack
 
-**Backend:** Python 3.12 · FastAPI · YOLO (Ultralytics) · ByteTrack · YOLO Pose · OpenCV · SQLite · paho-mqtt
+**Backend:** Python 3.12 路 FastAPI 路 YOLO (Ultralytics) 路 ByteTrack 路 YOLO Pose 路 OpenCV 路 SQLite 路 paho-mqtt
 
-**Frontend:** React 19 · TypeScript · Vite · Tailwind CSS v4
+**Frontend:** React 19 路 TypeScript 路 Vite 路 Tailwind CSS v4
 
-**Infrastructure:** Docker multi-stage build · go2rtc (RTSP proxy) · NVIDIA GPU support
+**Infrastructure:** Docker multi-stage build 路 go2rtc (RTSP proxy) 路 NVIDIA GPU support
 
 ## Quick Start
 
@@ -68,7 +68,7 @@ services:
     image: ghcr.io/zhengdegu/behavior-detection:latest
     ports:
       - "18000:18000"
-      - "1988:1984"
+      - "11984:1984"
       - "18555:8555/tcp"
       - "18555:8555/udp"
     environment:
@@ -88,7 +88,7 @@ services:
     image: ghcr.io/zhengdegu/behavior-detection:gpu
     ports:
       - "18000:18000"
-      - "1988:1984"
+      - "11984:1984"
       - "18555:8555/tcp"
       - "18555:8555/udp"
     environment:
@@ -122,7 +122,7 @@ If not using docker-compose, you can start directly with `docker run`:
 docker run -d \
   --name behavior-detection \
   -p 18000:18000 \
-  -p 1988:1984 \
+  -p 11984:1984 \
   -p 18555:8555/tcp \
   -p 18555:8555/udp \
   -e GO2RTC_WEBRTC_CANDIDATES=YOUR_PUBLIC_IP:18555 \
@@ -139,7 +139,7 @@ docker run -d \
   --gpus all \
   --name behavior-detection \
   -p 18000:18000 \
-  -p 1988:1984 \
+  -p 11984:1984 \
   -p 18555:8555/tcp \
   -p 18555:8555/udp \
   -e GO2RTC_WEBRTC_CANDIDATES=YOUR_PUBLIC_IP:18555 \
@@ -270,8 +270,8 @@ Events follow a lifecycle model. The same event sends `triggered` once, `updatin
 
 The system requires YOLO model files placed in the `data/models/` directory:
 
-- `yolo26m.pt` — Object detection model (required)
-- `yolo26m-pose.pt` — Pose estimation model (optional, enhances fight/fall detection accuracy)
+- `yolo26m.pt` 鈥?Object detection model (required)
+- `yolo26m-pose.pt` 鈥?Pose estimation model (optional, enhances fight/fall detection accuracy)
 
 Model files must be manually downloaded to `data/models/` before first startup.
 
@@ -299,38 +299,38 @@ Model files must be manually downloaded to `data/models/` before first startup.
 
 ```
 behavior-detection/
-├── backend/
-│   ├── src/
-│   │   ├── main.py              # Main entry point
-│   │   ├── server.py            # FastAPI web server + REST API
-│   │   ├── config.py            # Pydantic configuration models
-│   │   ├── database.py          # SQLite database + Repository
-│   │   ├── analyzer.py          # Video analysis pipeline (one thread per camera)
-│   │   ├── detector.py          # YOLO detector + Pose detector
-│   │   ├── detection.py         # Detection data class
-│   │   ├── geometry.py          # Geometry utilities (point-in-polygon)
-│   │   ├── go2rtc.py            # go2rtc stream management (RTSP proxy)
-│   │   ├── mqtt_publisher.py    # MQTT publisher (paho-mqtt v2)
-│   │   ├── event_session.py     # Event session manager (lifecycle + merge)
-│   │   └── rules/               # Behavior rule engine
-│   │       ├── engine.py        # Rule aggregation
-│   │       ├── base.py          # Rule base class (confirm + cooldown)
-│   │       ├── crowd.py         # Crowd detection
-│   │       ├── fight.py         # Fight detection
-│   │       └── fall.py          # Fall detection
-│   └── requirements.txt
-├── frontend/
-│   ├── src/
-│   │   ├── pages/               # Live / Events / Config / Analyze / System
-│   │   ├── components/          # CameraGrid / Go2RTCPlayer / RoiEditor / ...
-│   │   ├── hooks/               # useWebSocket / useDetectionWebSocket
-│   │   ├── api.ts               # API client
-│   │   └── types.ts             # TypeScript type definitions
-│   └── package.json
-├── Dockerfile                    # Multi-stage build (Node.js + Python)
-├── docker-compose.yml
-└── .github/workflows/
-    └── build-image.yml           # GitHub Actions auto-build images
+鈹溾攢鈹€ backend/
+鈹?  鈹溾攢鈹€ src/
+鈹?  鈹?  鈹溾攢鈹€ main.py              # Main entry point
+鈹?  鈹?  鈹溾攢鈹€ server.py            # FastAPI web server + REST API
+鈹?  鈹?  鈹溾攢鈹€ config.py            # Pydantic configuration models
+鈹?  鈹?  鈹溾攢鈹€ database.py          # SQLite database + Repository
+鈹?  鈹?  鈹溾攢鈹€ analyzer.py          # Video analysis pipeline (one thread per camera)
+鈹?  鈹?  鈹溾攢鈹€ detector.py          # YOLO detector + Pose detector
+鈹?  鈹?  鈹溾攢鈹€ detection.py         # Detection data class
+鈹?  鈹?  鈹溾攢鈹€ geometry.py          # Geometry utilities (point-in-polygon)
+鈹?  鈹?  鈹溾攢鈹€ go2rtc.py            # go2rtc stream management (RTSP proxy)
+鈹?  鈹?  鈹溾攢鈹€ mqtt_publisher.py    # MQTT publisher (paho-mqtt v2)
+鈹?  鈹?  鈹溾攢鈹€ event_session.py     # Event session manager (lifecycle + merge)
+鈹?  鈹?  鈹斺攢鈹€ rules/               # Behavior rule engine
+鈹?  鈹?      鈹溾攢鈹€ engine.py        # Rule aggregation
+鈹?  鈹?      鈹溾攢鈹€ base.py          # Rule base class (confirm + cooldown)
+鈹?  鈹?      鈹溾攢鈹€ crowd.py         # Crowd detection
+鈹?  鈹?      鈹溾攢鈹€ fight.py         # Fight detection
+鈹?  鈹?      鈹斺攢鈹€ fall.py          # Fall detection
+鈹?  鈹斺攢鈹€ requirements.txt
+鈹溾攢鈹€ frontend/
+鈹?  鈹溾攢鈹€ src/
+鈹?  鈹?  鈹溾攢鈹€ pages/               # Live / Events / Config / Analyze / System
+鈹?  鈹?  鈹溾攢鈹€ components/          # CameraGrid / Go2RTCPlayer / RoiEditor / ...
+鈹?  鈹?  鈹溾攢鈹€ hooks/               # useWebSocket / useDetectionWebSocket
+鈹?  鈹?  鈹溾攢鈹€ api.ts               # API client
+鈹?  鈹?  鈹斺攢鈹€ types.ts             # TypeScript type definitions
+鈹?  鈹斺攢鈹€ package.json
+鈹溾攢鈹€ Dockerfile                    # Multi-stage build (Node.js + Python)
+鈹溾攢鈹€ docker-compose.yml
+鈹斺攢鈹€ .github/workflows/
+    鈹斺攢鈹€ build-image.yml           # GitHub Actions auto-build images
 ```
 
 ## Port Information
@@ -338,7 +338,7 @@ behavior-detection/
 | Port | Description |
 |------|-------------|
 | 18000 | FastAPI (frontend + backend API + event screenshots) |
-| 1988 | go2rtc API/WebSocket (MSE fallback, mapped from internal 1984) |
+| 11984 | go2rtc API/WebSocket (MSE fallback, mapped from internal 1984) |
 | 18555 | go2rtc WebRTC (TCP+UDP, mapped from internal 8555) |
 
 The frontend uses the backend reverse proxy (`/go2rtc/api/ws`) for video streaming, so only port 18000 needs to be accessible from the browser. WebRTC uses port 18555 (UDP+TCP) for low-latency media transport. Port 8554 (go2rtc RTSP restream) is used internally within the container only.
@@ -372,4 +372,4 @@ sudo firewall-cmd --reload
 docker compose up -d --build
 ```
 
-> If your network does not allow UDP (e.g., behind strict corporate firewall), the player will automatically fall back to MSE mode via WebSocket on port 1988 (higher latency, ~3-8 seconds).
+> If your network does not allow UDP (e.g., behind strict corporate firewall), the player will automatically fall back to MSE mode via WebSocket on port 11984 (higher latency, ~3-8 seconds).
