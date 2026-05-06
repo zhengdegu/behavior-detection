@@ -54,6 +54,9 @@ def main():
     # ── 2. Start go2rtc ──
     go2rtc_mgr = Go2RTCManager()
 
+    # Ensure correct port config FIRST (fixes stale volume-mounted yaml)
+    go2rtc_mgr._ensure_config()
+
     # Write all RTSP streams to go2rtc config file before starting (go2rtc loads them on startup)
     for cam in camera_configs:
         url = cam.url
