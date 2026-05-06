@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
-import { Video } from 'lucide-react'
+import { useRef } from 'react'
 
 interface Go2RTCPlayerProps {
-  /** go2rtc WebSocket URL, e.g. /go2rtc/ws?src=cam01 */
+  /** Camera stream name (e.g. cam01) */
   src: string
   /** Called when the video element has loaded data */
   onVideoReady?: (video: HTMLVideoElement) => void
@@ -11,146 +10,31 @@ interface Go2RTCPlayerProps {
   className?: string
 }
 
-/** Track whether the VideoRTC custom element has been registered */
-let registered = false
-let registering = false
-const callbacks: Array<(ok: boolean) => void> = []
-
-function ensureVideoRTCRegistered(): Promise<boolean> {
-  if (registered) return Promise.resolve(true)
-
-  return new Promise((resolve) => {
-    callbacks.push(resolve)
-    if (registering) return
-
-    registering = true
-
-    // Load video-rtc.js as ES module and register the custom element
-    const script = document.createElement('script')
-    script.type = 'module'
-    script.textContent = `
-      import {VideoRTC} from '/go2rtc/video-rtc.js';
-      if (!customElements.get('video-rtc')) {
-        customElements.define('video-rtc', VideoRTC);
-      }
-      window.__go2rtc_ready = true;
-      window.dispatchEvent(new Event('go2rtc-ready'));
-    `
-    document.head.appendChild(script)
-
-    const onReady = () => {
-      window.removeEventListener('go2rtc-ready', onReady)
-      registered = true
-      registering = false
-      callbacks.forEach((cb) => cb(true))
-      callbacks.length = 0
-    }
-    window.addEventListener('go2rtc-ready', onReady)
-
-    // Timeout fallback
-    setTimeout(() => {
-      if (!registered) {
-        registering = false
-        callbacks.forEach((cb) => cb(false))
-        callbacks.length = 0
-      }
-    }, 5000)
-  })
-}
-
 export default function Go2RTCPlayer({
   src,
-  onVideoReady,
-  onError,
   className,
 }: Go2RTCPlayerProps) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const elementRef = useRef<HTMLElement | null>(null)
-  const [error, setError] = useState(false)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
 
-  useEffect(() => {
-    let cancelled = false
-
-    async function init() {
-      const ok = await ensureVideoRTCRegistered()
-      if (cancelled) return
-
-      if (!ok) {
-        setError(true)
-        onError?.('Failed to load video-rtc.js')
-        return
-      }
-
-      const container = containerRef.current
-      if (!container) return
-
-      // Create the <video-rtc> custom element
-      const el = document.createElement('video-rtc') as HTMLElement & { src: string }
-      el.style.width = '100%'
-      el.style.height = '100%'
-      el.style.display = 'block'
-
-      // Production (Docker): use backend reverse proxy at /go2rtc/api/ws (same origin)
-      // Development (Vite): connect directly to go2rtc port
-      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const go2rtcHost = window.location.hostname
-      const isDev = window.location.port === '5173'
-      let wsUrl: string
-      if (isDev) {
-        // Local dev: connect to go2rtc directly via configured port
-        const go2rtcPort = import.meta.env.VITE_GO2RTC_PORT || '1984'
-        wsUrl = `${wsProtocol}//${go2rtcHost}:${go2rtcPort}/api/ws?src=${encodeURIComponent(src)}`
-      } else {
-        // Production: use backend reverse proxy (same host:port, works on any mapped port)
-        wsUrl = `${wsProtocol}//${window.location.host}/go2rtc/api/ws?src=${encodeURIComponent(src)}`
-      }
-
-      // Append to DOM first, then set src property (VideoRTC needs to be connected)
-      container.appendChild(el)
-      elementRef.current = el
-
-      // Wait for the internal video element to appear
-      const observer = new MutationObserver(() => {
-        const video = el.querySelector('video')
-        if (video) {
-          video.style.objectFit = 'cover'
-          video.addEventListener('loadeddata', () => {
-            if (!cancelled) {
-              setError(false)
-              onVideoReady?.(video)
-            }
-          })
-          observer.disconnect()
-        }
-      })
-      observer.observe(el, { childList: true, subtree: true })
-
-      // Set src via property AFTER element is in DOM (triggers WebSocket connection)
-      el.src = wsUrl
-    }
-
-    init()
-
-    return () => {
-      cancelled = true
-      const container = containerRef.current
-      if (elementRef.current && container?.contains(elementRef.current)) {
-        container.removeChild(elementRef.current)
-      }
-      elementRef.current = null
-    }
-  }, [src, onVideoReady, onError])
-
-  if (error) {
-    return (
-      <div
-        className={`flex flex-col items-center justify-center bg-[#111827] text-t3 text-[11px] gap-1.5 ${className ?? ''}`}
-      >
-        <Video size={40} strokeWidth={1.5} className="text-hover" />
-        <span className="text-[#374151]">Video connection failed</span>
-      </div>
-    )
+  // Build go2rtc player URL
+  // Production: use backend reverse proxy (same origin)
+  // Development: use go2rtc directly via configured port
+  const isDev = window.location.port === '5173'
+  let playerUrl: string
+  if (isDev) {
+    const go2rtcPort = import.meta.env.VITE_GO2RTC_PORT || '1984'
+    playerUrl = `http://${window.location.hostname}:${go2rtcPort}/stream.html?src=${encodeURIComponent(src)}&mode=webrtc,mse`
+  } else {
+    playerUrl = `/go2rtc/stream.html?src=${encodeURIComponent(src)}&mode=webrtc,mse`
   }
 
-  return <div ref={containerRef} className={className} />
+  return (
+    <iframe
+      ref={iframeRef}
+      src={playerUrl}
+      className={className}
+      style={{ width: '100%', height: '100%', border: 'none' }}
+      allow="autoplay"
+    />
+  )
 }
