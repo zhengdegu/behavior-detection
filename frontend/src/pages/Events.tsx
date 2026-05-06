@@ -190,7 +190,7 @@ export default function Events() {
                 </td>
                 {/* Track IDs */}
                 <td className="px-3.5 py-2.5 border-t border-border text-t2">
-                  {ev.track_ids.map((id) => `#${id}`).join(',')}
+                  {(ev.track_ids ?? []).map((id) => `#${id}`).join(',') || '—'}
                 </td>
               </tr>
             ))}
