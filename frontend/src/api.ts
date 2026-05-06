@@ -8,6 +8,7 @@ import type {
   AnalysisTask,
   MQTTConfig,
   MQTTStatus,
+  Go2RTCConfig,
 } from './types';
 
 // ── Error class ──
@@ -180,4 +181,13 @@ export function updateMQTTConfig(data: MQTTConfig): Promise<MQTTConfig> {
 
 export function getMQTTStatus(): Promise<MQTTStatus> {
   return get<MQTTStatus>('/api/mqtt/status');
+}
+
+// go2rtc config
+export function getGo2RTCConfig(): Promise<Go2RTCConfig> {
+  return get<Go2RTCConfig>('/api/go2rtc/config');
+}
+
+export function updateGo2RTCConfig(data: Go2RTCConfig): Promise<Go2RTCConfig> {
+  return put<Go2RTCConfig>('/api/go2rtc/config', data);
 }

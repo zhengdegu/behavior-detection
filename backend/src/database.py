@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from .config import CameraConfig, DetectConfig, ModelConfig, RulesConfig, MQTTConfig, CameraMQTTPublishConfig
+from .config import CameraConfig, DetectConfig, ModelConfig, RulesConfig, MQTTConfig, CameraMQTTPublishConfig, Go2RTCConfig
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +129,12 @@ class DatabaseManager:
                 topic TEXT NOT NULL DEFAULT 'behavior-detection/events',
                 enabled INTEGER NOT NULL DEFAULT 0,
                 update_interval INTEGER NOT NULL DEFAULT 30,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS go2rtc_config (
+                id TEXT PRIMARY KEY,
+                webrtc_candidates TEXT NOT NULL DEFAULT '',
                 updated_at TEXT NOT NULL
             );
             """
@@ -387,6 +393,48 @@ class MQTTConfigRepository:
                 config.topic,
                 1 if config.enabled else 0,
                 config.update_interval,
+                now,
+            ),
+        )
+        conn.commit()
+
+
+# ── Go2RTCConfigRepository ──
+
+
+class Go2RTCConfigRepository:
+    """go2rtc global configuration data access"""
+
+    _DEFAULT_ID = "default"
+
+    def __init__(self, db: DatabaseManager):
+        self.db = db
+
+    def get(self) -> Go2RTCConfig:
+        """Get go2rtc configuration, return default values if not exists"""
+        conn = self.db.get_connection()
+        row = conn.execute(
+            "SELECT webrtc_candidates FROM go2rtc_config WHERE id = ?",
+            (self._DEFAULT_ID,),
+        ).fetchone()
+
+        if row is not None:
+            return Go2RTCConfig(
+                webrtc_candidates=row["webrtc_candidates"],
+            )
+
+        return Go2RTCConfig()
+
+    def save(self, config: Go2RTCConfig) -> None:
+        """Save go2rtc configuration (INSERT OR REPLACE)"""
+        conn = self.db.get_connection()
+        now = datetime.now(timezone.utc).isoformat()
+        conn.execute(
+            "INSERT OR REPLACE INTO go2rtc_config "
+            "(id, webrtc_candidates, updated_at) VALUES (?, ?, ?)",
+            (
+                self._DEFAULT_ID,
+                config.webrtc_candidates,
                 now,
             ),
         )

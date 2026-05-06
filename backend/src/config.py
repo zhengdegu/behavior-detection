@@ -79,6 +79,10 @@ class ModelConfig(BaseModel):
     tracker_config: str = "bytetrack.yaml"
 
 
+class Go2RTCConfig(BaseModel):
+    webrtc_candidates: str = ""  # Comma-separated IP:port list, e.g. "192.168.104.48:1988"
+
+
 class AppConfig(BaseModel):
     model: ModelConfig = ModelConfig()
     cameras: List[CameraConfig] = Field(default_factory=list)

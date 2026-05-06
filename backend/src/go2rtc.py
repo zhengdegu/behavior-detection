@@ -235,6 +235,16 @@ class Go2RTCManager:
         self._remove_from_config_file(stream_name)
         return True
 
+    def update_webrtc_candidates(self, candidates_str: str):
+        """Update go2rtc.yaml webrtc candidates section"""
+        config = self._load_config()
+        if candidates_str:
+            candidates = [c.strip() for c in candidates_str.split(",") if c.strip()]
+            config["webrtc"] = {"candidates": candidates}
+        else:
+            config.pop("webrtc", None)
+        self._save_config(config)
+
     def _ensure_config(self):
         """Ensure go2rtc config file exists"""
         if os.path.isfile(self.config_path):

@@ -9,7 +9,7 @@ import os
 import uvicorn
 
 from .analyzer import CameraAnalyzer
-from .database import DatabaseManager, CameraRepository, ModelRepository, TaskRepository, MQTTConfigRepository, migrate_from_yaml
+from .database import DatabaseManager, CameraRepository, ModelRepository, TaskRepository, MQTTConfigRepository, Go2RTCConfigRepository, migrate_from_yaml
 from .event_session import EventSessionManager
 from .go2rtc import Go2RTCManager
 from .mqtt_publisher import MQTTPublisher
@@ -18,6 +18,7 @@ from .server import (
     register_analyzers,
     register_repositories,
     register_go2rtc,
+    register_go2rtc_config,
     register_mqtt,
     push_event,
     push_detections,
@@ -41,6 +42,7 @@ def main():
     model_repo = ModelRepository(db)
     task_repo = TaskRepository(db)
     mqtt_config_repo = MQTTConfigRepository(db)
+    go2rtc_config_repo = Go2RTCConfigRepository(db)
 
     model_config = model_repo.get()
     model_cfg = model_config.model_dump()
@@ -68,6 +70,12 @@ def main():
 
         # Start health check
         go2rtc_mgr.start_health_check()
+
+        # Apply webrtc candidates from database (overrides env var if set)
+        go2rtc_cfg = go2rtc_config_repo.get()
+        if go2rtc_cfg.webrtc_candidates:
+            go2rtc_mgr.update_webrtc_candidates(go2rtc_cfg.webrtc_candidates)
+            logger.info(f"Applied WebRTC candidates from database: {go2rtc_cfg.webrtc_candidates}")
     else:
         logger.warning("go2rtc not started, running without go2rtc (Analyzer direct RTSP connection)")
 
@@ -110,6 +118,7 @@ def main():
     register_analyzers(analyzers)
     register_repositories(camera_repo, model_repo, task_repo)
     register_go2rtc(go2rtc_mgr)
+    register_go2rtc_config(go2rtc_config_repo)
     register_mqtt(mqtt_config_repo, mqtt_publisher, event_session_mgr)
     logger.info(f"Started {len(analyzers)} camera analyzers")
 

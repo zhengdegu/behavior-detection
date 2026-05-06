@@ -149,3 +149,9 @@ export interface CameraMQTTPublishConfig {
   fight: boolean;
   fall: boolean;
 }
+
+// ── go2rtc Config ──
+
+export interface Go2RTCConfig {
+  webrtc_candidates: string;
+}

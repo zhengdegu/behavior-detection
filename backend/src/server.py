@@ -22,7 +22,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import FileResponse as StarletteFileResponse
 from pydantic import BaseModel, Field
 
-from .config import CameraConfig, RulesConfig, DetectConfig, AppConfig, MQTTConfig, CameraMQTTPublishConfig
+from .config import CameraConfig, RulesConfig, DetectConfig, AppConfig, MQTTConfig, CameraMQTTPublishConfig, Go2RTCConfig
 from .analyzer import CameraAnalyzer
 
 logger = logging.getLogger(__name__)
@@ -110,6 +110,9 @@ _mqtt_config_repo = None
 _mqtt_publisher = None
 _event_session_mgr = None
 
+# go2rtc config repository (injected by main.py via register_go2rtc_config)
+_go2rtc_config_repo = None
+
 
 @app.on_event("startup")
 async def _on_startup():
@@ -163,6 +166,12 @@ def register_mqtt(mqtt_config_repo, mqtt_publisher, event_session_mgr):
     _mqtt_config_repo = mqtt_config_repo
     _mqtt_publisher = mqtt_publisher
     _event_session_mgr = event_session_mgr
+
+
+def register_go2rtc_config(go2rtc_config_repo):
+    """Inject Go2RTCConfigRepository instance (called by main.py)"""
+    global _go2rtc_config_repo
+    _go2rtc_config_repo = go2rtc_config_repo
 
 
 def push_detections(camera_id: str, timestamp: float, detections: list):
@@ -799,6 +808,43 @@ async def get_mqtt_status():
     return {
         "connected": connected,
         "active_sessions": active_sessions,
+    }
+
+
+# ── go2rtc Configuration API ──
+
+class UpdateGo2RTCConfigRequest(BaseModel):
+    webrtc_candidates: str = ""
+
+
+@app.get("/api/go2rtc/config")
+async def get_go2rtc_config():
+    """Get go2rtc configuration"""
+    if not _go2rtc_config_repo:
+        return JSONResponse({"error": "go2rtc config not configured"}, status_code=503)
+    config = _go2rtc_config_repo.get()
+    return {
+        "webrtc_candidates": config.webrtc_candidates,
+    }
+
+
+@app.put("/api/go2rtc/config")
+async def update_go2rtc_config(req: UpdateGo2RTCConfigRequest):
+    """Update go2rtc configuration and rewrite go2rtc.yaml"""
+    if not _go2rtc_config_repo:
+        return JSONResponse({"error": "go2rtc config not configured"}, status_code=503)
+
+    config = Go2RTCConfig(
+        webrtc_candidates=req.webrtc_candidates,
+    )
+    _go2rtc_config_repo.save(config)
+
+    # Update go2rtc.yaml webrtc candidates section
+    if _go2rtc_mgr:
+        _go2rtc_mgr.update_webrtc_candidates(req.webrtc_candidates)
+
+    return {
+        "webrtc_candidates": config.webrtc_candidates,
     }
 
 
