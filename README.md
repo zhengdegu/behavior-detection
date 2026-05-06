@@ -45,7 +45,7 @@ docker compose up -d --build
 docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
 ```
 
-Visit `http://localhost:8000`
+Visit `http://localhost:18000`
 
 ### Pull Pre-built Images
 
@@ -67,7 +67,7 @@ services:
   behavior-detection:
     image: ghcr.io/zhengdegu/behavior-detection:latest
     ports:
-      - "8000:8000"
+      - "18000:18000"
       - "1988:1984"
       - "18555:8555/tcp"
       - "18555:8555/udp"
@@ -87,7 +87,7 @@ services:
   behavior-detection:
     image: ghcr.io/zhengdegu/behavior-detection:gpu
     ports:
-      - "8000:8000"
+      - "18000:18000"
       - "1988:1984"
       - "18555:8555/tcp"
       - "18555:8555/udp"
@@ -121,11 +121,11 @@ If not using docker-compose, you can start directly with `docker run`:
 ```bash
 docker run -d \
   --name behavior-detection \
-  -p 8000:8000 \
+  -p 18000:18000 \
   -p 1988:1984 \
   -p 18555:8555/tcp \
   -p 18555:8555/udp \
-  -e GO2RTC_WEBRTC_CANDIDATES=你的公网IP:18555 \
+  -e GO2RTC_WEBRTC_CANDIDATES=YOUR_PUBLIC_IP:18555 \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/configs:/app/configs \
   --restart unless-stopped \
@@ -138,11 +138,11 @@ docker run -d \
 docker run -d \
   --gpus all \
   --name behavior-detection \
-  -p 8000:8000 \
+  -p 18000:18000 \
   -p 1988:1984 \
   -p 18555:8555/tcp \
   -p 18555:8555/udp \
-  -e GO2RTC_WEBRTC_CANDIDATES=你的公网IP:18555 \
+  -e GO2RTC_WEBRTC_CANDIDATES=YOUR_PUBLIC_IP:18555 \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/configs:/app/configs \
   --restart unless-stopped \
@@ -158,20 +158,20 @@ docker run -d \
 cd backend
 pip install -r requirements.txt
 python -m src.main
-# API runs at http://localhost:8000
+# API runs at http://localhost:18000
 
 # Frontend (in another terminal)
 cd frontend
 npm install
 npm run dev
-# Dev server runs at http://localhost:5173, auto-proxies API to port 8000
+# Dev server runs at http://localhost:5173, auto-proxies API to port 18000
 ```
 
 ## Usage Guide
 
 ### 1. Add Cameras
 
-Open `http://localhost:8000` and go to the **Config** page:
+Open `http://localhost:18000` and go to the **Config** page:
 
 1. Click the **+ Add** button
 2. Fill in Camera ID, name, and RTSP URL
@@ -337,11 +337,11 @@ behavior-detection/
 
 | Port | Description |
 |------|-------------|
-| 8000 | FastAPI (frontend + backend API + event screenshots) |
+| 18000 | FastAPI (frontend + backend API + event screenshots) |
 | 1988 | go2rtc API/WebSocket (MSE fallback, mapped from internal 1984) |
 | 18555 | go2rtc WebRTC (TCP+UDP, mapped from internal 8555) |
 
-The frontend connects directly to go2rtc on port 1988 for live video streaming. WebRTC uses port 18555 (UDP+TCP) for low-latency streaming. Port 8554 (go2rtc RTSP restream) is used internally within the container only.
+The frontend uses the backend reverse proxy (`/go2rtc/api/ws`) for video streaming, so only port 18000 needs to be accessible from the browser. WebRTC uses port 18555 (UDP+TCP) for low-latency media transport. Port 8554 (go2rtc RTSP restream) is used internally within the container only.
 
 ## WebRTC Low-Latency Deployment
 
@@ -350,7 +350,7 @@ By default, the system uses WebRTC for video streaming (< 1 second latency). For
 ### 1. Create `.env` file with your server's public IP
 
 ```bash
-echo "SERVER_PUBLIC_IP=你的服务器公网IP:18555" > .env
+echo "SERVER_PUBLIC_IP=YOUR_SERVER_PUBLIC_IP:18555" > .env
 ```
 
 ### 2. Open firewall ports

@@ -32,8 +32,8 @@ COPY configs/ configs/
 # ── 数据目录（模型、数据库、事件截图等）──
 RUN mkdir -p data/models data/events data/uploads data/outputs
 
-# ── 端口：8000(FastAPI) + 1984(go2rtc API) + 8555(go2rtc RTSP) ──
-EXPOSE 8000 1984 8555
+# Ports: 18000(FastAPI) + 1984(go2rtc API) + 8555(go2rtc RTSP)
+EXPOSE 18000 1984 8555
 
 ENV NVIDIA_VISIBLE_DEVICES=all
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility

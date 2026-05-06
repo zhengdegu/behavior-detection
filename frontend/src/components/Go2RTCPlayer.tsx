@@ -112,9 +112,8 @@ export default function Go2RTCPlayer({
       })
       observer.observe(el, { childList: true, subtree: true })
 
-      // Build go2rtc URL
-      // Production (Docker): use backend reverse proxy at /go2rtc/api/ws (same origin, port 8000)
-      // Development (Vite): connect directly to go2rtc port (Vite proxy or direct)
+      // Production (Docker): use backend reverse proxy at /go2rtc/api/ws (same origin)
+      // Development (Vite): connect directly to go2rtc port
       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
       const go2rtcHost = window.location.hostname
       const isDev = window.location.port === '5173'
@@ -124,7 +123,7 @@ export default function Go2RTCPlayer({
         const go2rtcPort = import.meta.env.VITE_GO2RTC_PORT || '1984'
         wsUrl = `${wsProtocol}//${go2rtcHost}:${go2rtcPort}/api/ws?src=${encodeURIComponent(src)}`
       } else {
-        // Production: use backend reverse proxy (same host:port)
+        // Production: use backend reverse proxy (same host:port, works on any mapped port)
         wsUrl = `${wsProtocol}//${window.location.host}/go2rtc/api/ws?src=${encodeURIComponent(src)}`
       }
       el.src = wsUrl

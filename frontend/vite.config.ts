@@ -10,16 +10,16 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'http://localhost:18000',
         changeOrigin: true,
       },
       '/ws': {
-        target: 'http://localhost:8000',
+        target: 'http://localhost:18000',
         changeOrigin: true,
         ws: true,
       },
       '/events': {
-        target: 'http://localhost:8000',
+        target: 'http://localhost:18000',
         changeOrigin: true,
       },
       '/go2rtc': {
