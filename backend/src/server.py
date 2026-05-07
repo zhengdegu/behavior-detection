@@ -904,7 +904,12 @@ async def go2rtc_ws_proxy(websocket: WebSocket):
     import websockets as ws_lib
 
     try:
-        async with ws_lib.connect(target_url) as upstream:
+        async with ws_lib.connect(
+            target_url,
+            ping_interval=None,  # Disable keepalive ping to avoid AssertionError in legacy protocol
+            ping_timeout=None,
+            max_size=None,  # No message size limit for video streams
+        ) as upstream:
             async def client_to_upstream():
                 try:
                     while True:
