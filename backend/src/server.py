@@ -892,7 +892,11 @@ async def go2rtc_root_js(request: Request):
 
 @app.websocket("/go2rtc/api/ws")
 async def go2rtc_ws_proxy(websocket: WebSocket):
-    """WebSocket reverse proxy to go2rtc /api/ws (bidirectional relay)"""
+    """WebSocket reverse proxy to go2rtc /api/ws (bidirectional relay)
+    
+    Uses aiohttp instead of websockets library to avoid the legacy protocol
+    keepalive ping AssertionError that occurs under high-throughput video streams.
+    """
     await websocket.accept()
 
     # Build target URL (preserve query parameters)
@@ -901,46 +905,48 @@ async def go2rtc_ws_proxy(websocket: WebSocket):
     if query_string:
         target_url += f"?{query_string}"
 
-    import websockets as ws_lib
+    import aiohttp
 
     try:
-        async with ws_lib.connect(
-            target_url,
-            ping_interval=None,  # Disable keepalive ping to avoid AssertionError in legacy protocol
-            ping_timeout=None,
-            max_size=None,  # No message size limit for video streams
-        ) as upstream:
-            async def client_to_upstream():
-                try:
-                    while True:
-                        data = await websocket.receive()
-                        if "text" in data:
-                            await upstream.send(data["text"])
-                        elif "bytes" in data:
-                            await upstream.send(data["bytes"])
-                except (WebSocketDisconnect, Exception):
-                    pass
+        async with aiohttp.ClientSession() as session:
+            async with session.ws_connect(
+                target_url,
+                heartbeat=None,  # Disable heartbeat to avoid ping/pong issues
+                max_msg_size=0,  # No message size limit for video streams
+            ) as upstream:
+                async def client_to_upstream():
+                    try:
+                        while True:
+                            data = await websocket.receive()
+                            if "text" in data:
+                                await upstream.send_str(data["text"])
+                            elif "bytes" in data:
+                                await upstream.send_bytes(data["bytes"])
+                    except (WebSocketDisconnect, Exception):
+                        pass
 
-            async def upstream_to_client():
-                try:
-                    async for message in upstream:
-                        if isinstance(message, str):
-                            await websocket.send_text(message)
-                        else:
-                            await websocket.send_bytes(message)
-                except (WebSocketDisconnect, Exception):
-                    pass
+                async def upstream_to_client():
+                    try:
+                        async for msg in upstream:
+                            if msg.type == aiohttp.WSMsgType.TEXT:
+                                await websocket.send_text(msg.data)
+                            elif msg.type == aiohttp.WSMsgType.BINARY:
+                                await websocket.send_bytes(msg.data)
+                            elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
+                                break
+                    except (WebSocketDisconnect, Exception):
+                        pass
 
-            # Bidirectional relay: run both directions simultaneously
-            done, pending = await asyncio.wait(
-                [
-                    asyncio.create_task(client_to_upstream()),
-                    asyncio.create_task(upstream_to_client()),
-                ],
-                return_when=asyncio.FIRST_COMPLETED,
-            )
-            for task in pending:
-                task.cancel()
+                # Bidirectional relay: run both directions simultaneously
+                done, pending = await asyncio.wait(
+                    [
+                        asyncio.create_task(client_to_upstream()),
+                        asyncio.create_task(upstream_to_client()),
+                    ],
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                for task in pending:
+                    task.cancel()
     except Exception as e:
         logger.warning(f"go2rtc WebSocket proxy connection failed: {e}")
     finally:
