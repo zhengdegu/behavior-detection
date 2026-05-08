@@ -12,16 +12,16 @@ Real-time video behavior detection system supporting **crowd detection**, **figh
 | Fight Detection | Multiple people in close proximity + high-speed motion + Pose enhancement (wrist punching features) |
 | Fall Detection | Bbox aspect ratio sudden change + Pose enhancement (head below hips) |
 | Video Analysis | Upload video files for offline analysis, generates annotated video and event reports |
-| MQTT Push | Event lifecycle (triggered 鈫?updating 鈫?resolved) push to external systems |
+| MQTT Push | Event lifecycle (triggered -> updating -> resolved) push to external systems |
 | Live Preview | Low-latency camera preview via go2rtc WebRTC/MSE |
 
 ## Tech Stack
 
-**Backend:** Python 3.12 路 FastAPI 路 YOLO (Ultralytics) 路 ByteTrack 路 YOLO Pose 路 OpenCV 路 SQLite 路 paho-mqtt
+**Backend:** Python 3.12 | FastAPI | YOLO (Ultralytics) | ByteTrack | YOLO Pose | OpenCV | SQLite | paho-mqtt
 
-**Frontend:** React 19 路 TypeScript 路 Vite 路 Tailwind CSS v4
+**Frontend:** React 19 | TypeScript | Vite | Tailwind CSS v4
 
-**Infrastructure:** Docker multi-stage build 路 go2rtc (RTSP proxy) 路 NVIDIA GPU support
+**Infrastructure:** Docker multi-stage build | go2rtc (RTSP proxy) | NVIDIA GPU support
 
 ## Quick Start
 
@@ -184,10 +184,7 @@ The camera will automatically start streaming and detecting after being added.
 On the Config page, select a camera:
 
 - **ROI Area**: Click on the left canvas to draw a detection region (polygon). Only people within the region will trigger alerts.
-- **Detection Rules**: Configure parameters and toggles for three detection rules on the right side:
-  - **Crowd**: `max_count` (person count threshold), `radius` (gathering radius in px), `cooldown` (cooldown time in seconds)
-  - **Fight**: `proximity_radius` (close-range threshold in px), `min_speed` (minimum motion speed in px/s)
-  - **Fall**: `ratio_threshold` (aspect ratio threshold), `min_y_drop` (minimum drop distance in px)
+- **Detection Rules**: Configure parameters and toggles for three detection rules on the right side.
 
 Click **Save Configuration** to save. The camera will automatically restart with the new configuration.
 
@@ -266,12 +263,99 @@ Events follow a lifecycle model. The same event sends `triggered` once, `updatin
 | `updating` | Anomaly persists | Sent every N seconds (configurable) |
 | `resolved` | Anomaly disappeared | Sent when anomaly is no longer detected |
 
+## Detection Rule Parameters
+
+All three detection rules share two common parameters from the base class:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `confirm_frames` | int | Number of consecutive frames the condition must be true before triggering an event. Prevents false positives from transient noise. |
+| `cooldown` | float | Minimum seconds between two triggers of the same event key. Prevents repeated alerts for the same ongoing situation. |
+
+### Crowd Detection
+
+Detects gatherings by building an adjacency graph of detected persons and finding connected components via BFS. An alert fires when a cluster size exceeds the threshold.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `enabled` | bool | false | Enable/disable crowd detection for this camera |
+| `max_count` | int | 5 | Minimum number of people in a cluster to trigger an alert. E.g., set to 3 to alert when 3+ people gather together. |
+| `radius` | float | 200 | Maximum distance (in pixels) between two people to consider them part of the same cluster. Two persons whose center-point distance is less than this value are connected in the adjacency graph. Increase for wide-angle cameras, decrease for close-up views. |
+| `confirm_frames` | int | 5 | Consecutive frames the crowd must persist before triggering. At 5 FPS detection, this means 1 second of sustained gathering. |
+| `cooldown` | float | 60 | Seconds to wait before re-alerting the same crowd cluster. |
+
+**How it works:**
+1. Extract all tracked persons in the current frame
+2. Build adjacency graph: connect any two persons whose center distance < `radius`
+3. BFS to find connected components (clusters)
+4. If any cluster has `count >= max_count`, increment confirm counter
+5. After `confirm_frames` consecutive positive frames, fire event (respecting `cooldown`)
+
+**Tuning tips:**
+- High-density scenes (e.g., lobby): increase `max_count` to 8-10 to avoid constant alerts
+- Wide-angle cameras: increase `radius` to 300-400 since people appear smaller
+- Narrow/close-up cameras: decrease `radius` to 100-150
+- Reduce false positives: increase `confirm_frames` to 8-10
+
+### Fight Detection
+
+Detects fights by identifying multiple people in close proximity with high-speed motion. When YOLO Pose model is available, wrist movement speed is used as an enhanced signal for punching actions.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `enabled` | bool | false | Enable/disable fight detection for this camera |
+| `proximity_radius` | float | 150 | Maximum distance (in pixels) between two people to consider them in "close range". People farther apart than this are not considered to be fighting each other. |
+| `min_speed` | float | 60 | Minimum motion speed (in pixels/second) for a person to be considered in "violent motion". Calculated from center-point displacement between frames, or wrist displacement when Pose is available. |
+| `min_persons` | int | 2 | Minimum number of people involved to trigger a fight alert. |
+| `confirm_frames` | int | 3 | Consecutive frames the fight condition must hold. At 5 FPS, this means 0.6 seconds. |
+| `cooldown` | float | 30 | Seconds to wait before re-alerting the same fight. |
+
+**How it works:**
+1. For each tracked person, calculate body center speed (displacement / time delta)
+2. If Pose model is loaded, also calculate wrist speed (keypoints 9, 10) for punch detection
+3. Effective speed = max(body_speed, wrist_speed)
+4. For each person with effective_speed > `min_speed`, check if there are `min_persons - 1` other people within `proximity_radius` who also have high speed
+5. If condition met for `confirm_frames` consecutive frames, fire event
+
+**Tuning tips:**
+- Busy corridors with fast walkers: increase `min_speed` to 100-150 to avoid false positives
+- Cameras with low FPS: decrease `min_speed` since displacement per frame is larger
+- Small rooms: decrease `proximity_radius` to 80-100
+- Require more certainty: increase `confirm_frames` to 5-8
+
+### Fall Detection
+
+Detects falls using two complementary methods: bounding box aspect ratio analysis (width/height suddenly increases as person transitions from standing to lying) and Pose keypoint analysis (head position drops below hips).
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `enabled` | bool | false | Enable/disable fall detection for this camera |
+| `ratio_threshold` | float | 1.0 | Bounding box width/height ratio threshold. A standing person typically has ratio < 0.5 (taller than wide). When ratio exceeds this value AND other conditions are met, it indicates a fall. |
+| `min_ratio_change` | float | 0.5 | Minimum increase in aspect ratio between consecutive frames to be considered a sudden change. Filters out people who are simply sitting or crouching (gradual change). |
+| `min_y_drop` | float | 20 | Minimum downward displacement (in pixels) of the person's center point between frames. Ensures the person actually dropped vertically, not just changed posture in place. |
+| `confirm_frames` | int | 2 | Consecutive frames the fall condition must hold. Set low (2) because falls happen quickly. |
+| `cooldown` | float | 30 | Seconds to wait before re-alerting the same person falling. |
+
+**How it works (three detection paths):**
+
+1. **Pose-based (highest priority):** If YOLO Pose model is loaded and head keypoints (nose, eyes) have Y-coordinate greater than hip keypoints (in image coordinates, Y increases downward), the person is considered fallen. Also checks if torso is nearly horizontal.
+
+2. **Static lying detection:** If current aspect ratio > 1.3 (person is clearly wider than tall), trigger regardless of motion. Catches cases where the fall happened before tracking started.
+
+3. **Dynamic ratio change:** If `ratio > ratio_threshold` AND `ratio_change > min_ratio_change` AND `y_drop > min_y_drop`, the person transitioned from standing to lying.
+
+**Tuning tips:**
+- Cameras mounted high (looking down): people always appear "wide", increase `ratio_threshold` to 1.2-1.5
+- Elderly care scenarios: decrease `confirm_frames` to 1 for fastest response
+- Gym/exercise areas: increase `min_ratio_change` to 0.8 and `cooldown` to 120 to avoid false positives from exercises
+- If getting false positives from people bending over: increase `min_y_drop` to 40-60
+
 ## YOLO Models
 
 The system requires YOLO model files placed in the `data/models/` directory:
 
-- `yolo26m.pt` 鈥?Object detection model (required)
-- `yolo26m-pose.pt` 鈥?Pose estimation model (optional, enhances fight/fall detection accuracy)
+- `yolo26m.pt` -- Object detection model (required)
+- `yolo26m-pose.pt` -- Pose estimation model (optional, enhances fight/fall detection accuracy)
 
 Model files must be manually downloaded to `data/models/` before first startup.
 
@@ -299,38 +383,38 @@ Model files must be manually downloaded to `data/models/` before first startup.
 
 ```
 behavior-detection/
-鈹溾攢鈹€ backend/
-鈹?  鈹溾攢鈹€ src/
-鈹?  鈹?  鈹溾攢鈹€ main.py              # Main entry point
-鈹?  鈹?  鈹溾攢鈹€ server.py            # FastAPI web server + REST API
-鈹?  鈹?  鈹溾攢鈹€ config.py            # Pydantic configuration models
-鈹?  鈹?  鈹溾攢鈹€ database.py          # SQLite database + Repository
-鈹?  鈹?  鈹溾攢鈹€ analyzer.py          # Video analysis pipeline (one thread per camera)
-鈹?  鈹?  鈹溾攢鈹€ detector.py          # YOLO detector + Pose detector
-鈹?  鈹?  鈹溾攢鈹€ detection.py         # Detection data class
-鈹?  鈹?  鈹溾攢鈹€ geometry.py          # Geometry utilities (point-in-polygon)
-鈹?  鈹?  鈹溾攢鈹€ go2rtc.py            # go2rtc stream management (RTSP proxy)
-鈹?  鈹?  鈹溾攢鈹€ mqtt_publisher.py    # MQTT publisher (paho-mqtt v2)
-鈹?  鈹?  鈹溾攢鈹€ event_session.py     # Event session manager (lifecycle + merge)
-鈹?  鈹?  鈹斺攢鈹€ rules/               # Behavior rule engine
-鈹?  鈹?      鈹溾攢鈹€ engine.py        # Rule aggregation
-鈹?  鈹?      鈹溾攢鈹€ base.py          # Rule base class (confirm + cooldown)
-鈹?  鈹?      鈹溾攢鈹€ crowd.py         # Crowd detection
-鈹?  鈹?      鈹溾攢鈹€ fight.py         # Fight detection
-鈹?  鈹?      鈹斺攢鈹€ fall.py          # Fall detection
-鈹?  鈹斺攢鈹€ requirements.txt
-鈹溾攢鈹€ frontend/
-鈹?  鈹溾攢鈹€ src/
-鈹?  鈹?  鈹溾攢鈹€ pages/               # Live / Events / Config / Analyze / System
-鈹?  鈹?  鈹溾攢鈹€ components/          # CameraGrid / Go2RTCPlayer / RoiEditor / ...
-鈹?  鈹?  鈹溾攢鈹€ hooks/               # useWebSocket / useDetectionWebSocket
-鈹?  鈹?  鈹溾攢鈹€ api.ts               # API client
-鈹?  鈹?  鈹斺攢鈹€ types.ts             # TypeScript type definitions
-鈹?  鈹斺攢鈹€ package.json
-鈹溾攢鈹€ Dockerfile                    # Multi-stage build (Node.js + Python)
-鈹溾攢鈹€ docker-compose.yml
-鈹斺攢鈹€ .github/workflows/
-    鈹斺攢鈹€ build-image.yml           # GitHub Actions auto-build images
++-- backend/
+|   +-- src/
+|   |   +-- main.py              # Main entry point
+|   |   +-- server.py            # FastAPI web server + REST API
+|   |   +-- config.py            # Pydantic configuration models
+|   |   +-- database.py          # SQLite database + Repository
+|   |   +-- analyzer.py          # Video analysis pipeline (one thread per camera)
+|   |   +-- detector.py          # YOLO detector + Pose detector
+|   |   +-- detection.py         # Detection data class
+|   |   +-- geometry.py          # Geometry utilities (point-in-polygon)
+|   |   +-- go2rtc.py            # go2rtc stream management (RTSP proxy)
+|   |   +-- mqtt_publisher.py    # MQTT publisher (paho-mqtt v2)
+|   |   +-- event_session.py     # Event session manager (lifecycle + merge)
+|   |   +-- rules/               # Behavior rule engine
+|   |       +-- engine.py        # Rule aggregation
+|   |       +-- base.py          # Rule base class (confirm + cooldown)
+|   |       +-- crowd.py         # Crowd detection
+|   |       +-- fight.py         # Fight detection
+|   |       +-- fall.py          # Fall detection
+|   +-- requirements.txt
++-- frontend/
+|   +-- src/
+|   |   +-- pages/               # Live / Events / Config / Analyze / System
+|   |   +-- components/          # CameraGrid / Go2RTCPlayer / RoiEditor / ...
+|   |   +-- hooks/               # useWebSocket / useDetectionWebSocket
+|   |   +-- api.ts               # API client
+|   |   +-- types.ts             # TypeScript type definitions
+|   +-- package.json
++-- Dockerfile                    # Multi-stage build (Node.js + Python)
++-- docker-compose.yml
++-- .github/workflows/
+    +-- build-image.yml           # GitHub Actions auto-build images
 ```
 
 ## Port Information
@@ -345,7 +429,7 @@ The frontend uses the backend reverse proxy (`/go2rtc/api/ws`) for video streami
 
 ## WebRTC Low-Latency Deployment
 
-By default, the system uses WebRTC for video streaming (< 1 second latency). For WebRTC to work over the internet, you need to:
+By default, the system uses MSE for video streaming (~3-8 seconds latency) with WebRTC as an optional upgrade (< 1 second latency). For WebRTC to work over the internet, you need to:
 
 ### 1. Create `.env` file with your server's public IP
 
@@ -372,4 +456,8 @@ sudo firewall-cmd --reload
 docker compose up -d --build
 ```
 
-> If your network does not allow UDP (e.g., behind strict corporate firewall), the player will automatically fall back to MSE mode via WebSocket on port 11984 (higher latency, ~3-8 seconds).
+> If your network does not allow UDP (e.g., behind strict corporate firewall), the player will automatically fall back to MSE mode via WebSocket (higher latency, ~3-8 seconds). MSE mode only requires port 18000 to be accessible.
+
+## License
+
+MIT
