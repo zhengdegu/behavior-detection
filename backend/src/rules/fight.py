@@ -128,6 +128,7 @@ class FightRule(BaseAnomalyRule):
                     "sub_type": "fight",
                     "camera_id": camera_id,
                     "track_id": det_i.track_id,
+                    "involved_track_ids": involved,
                     "class_name": "person",
                     "involved_count": len(involved),
                     "avg_speed": round(avg_speed, 1),

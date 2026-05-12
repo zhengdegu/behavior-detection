@@ -818,6 +818,10 @@ async def update_mqtt_config(req: UpdateMQTTConfigRequest):
     if _mqtt_publisher:
         _mqtt_publisher.update_config(config)
 
+    # Invalidate cached MQTT config in event session manager
+    if _event_session_mgr:
+        _event_session_mgr.invalidate_mqtt_config_cache()
+
     return {
         "host": config.host,
         "port": config.port,

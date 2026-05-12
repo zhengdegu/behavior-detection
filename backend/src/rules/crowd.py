@@ -99,6 +99,7 @@ class CrowdRule(BaseAnomalyRule):
                 "sub_type": "crowd",
                 "camera_id": camera_id,
                 "count": count,
+                "max_count": self.max_count,
                 "center": (cx, cy),
                 "bbox": bbox,
                 "track_ids": tids,

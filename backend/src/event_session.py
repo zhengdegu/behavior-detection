@@ -5,6 +5,7 @@ Event session manager — event lifecycle (triggered → updating → resolved) 
 import logging
 import threading
 import time
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Set
@@ -43,6 +44,10 @@ class EventSessionManager:
         self._camera_repo = camera_repo
         self._sessions: Dict[str, EventSession] = {}
         self._lock = threading.Lock()
+        # Cached MQTT config to avoid querying database every frame
+        self._cached_mqtt_config: Optional[MQTTConfig] = None
+        self._cached_mqtt_config_time: float = 0.0
+        self._mqtt_config_cache_ttl: float = 5.0  # refresh every 5 seconds
 
     def handle_event(self, event: dict, camera_config: dict) -> None:
         """Process events produced by BehaviorEngine"""
@@ -71,10 +76,24 @@ class EventSessionManager:
 
     # ── Internal methods ──
 
+    def _get_mqtt_config(self) -> MQTTConfig:
+        """Get MQTT config with caching to avoid querying database every frame"""
+        now = time.time()
+        if (self._cached_mqtt_config is None or
+                now - self._cached_mqtt_config_time > self._mqtt_config_cache_ttl):
+            self._cached_mqtt_config = self._mqtt_config_repo.get()
+            self._cached_mqtt_config_time = now
+        return self._cached_mqtt_config
+
+    def invalidate_mqtt_config_cache(self) -> None:
+        """Invalidate cache when config is updated via API"""
+        self._cached_mqtt_config = None
+        self._cached_mqtt_config_time = 0.0
+
     def _should_process(self, event: dict, camera_config: dict) -> bool:
         """Three-level switch filtering: global → camera → event type"""
         # 1. Global MQTT switch
-        mqtt_config = self._mqtt_config_repo.get()
+        mqtt_config = self._get_mqtt_config()
         if not mqtt_config.enabled:
             return False
 
@@ -122,8 +141,14 @@ class EventSessionManager:
             session.last_publish_time = now
 
     def _tick_no_event_locked(self, camera_id: str, untriggered_types: list) -> None:
-        """Increment untriggered frame counter, check for resolved (lock already held)"""
+        """Increment untriggered frame counter, check for resolved (lock already held)
+        
+        Uses time-based resolved detection: an event is resolved when it hasn't been
+        triggered for longer than its cooldown period. This prevents premature resolved
+        messages during cooldown gaps.
+        """
         resolved_keys = []
+        now = time.time()
 
         for key, session in self._sessions.items():
             if session.camera_id != camera_id:
@@ -133,7 +158,10 @@ class EventSessionManager:
 
             session.untriggered_frame_count += 1
 
-            if session.untriggered_frame_count >= session.resolve_threshold:
+            # Time-based resolve: use time since last update instead of frame count
+            # Resolve only after cooldown period has passed without new events
+            time_since_last_update = now - session.last_update_time
+            if time_since_last_update >= session.resolve_threshold:
                 session.status = "resolved"
                 self._publish_message(session)
                 resolved_keys.append(key)
@@ -157,12 +185,8 @@ class EventSessionManager:
                 return session
 
             elif event_type == "fight":
-                # Fight events: merge only if track_ids overlap
-                event_track_ids = set()
-                if "track_ids" in event:
-                    event_track_ids = set(event.get("track_ids", []))
-                elif "track_id" in event:
-                    event_track_ids = {event["track_id"]}
+                # Fight events: merge if any involved track_id overlaps with session
+                event_track_ids = self._extract_all_track_ids(event)
                 if session.track_ids & event_track_ids:
                     return session
 
@@ -174,6 +198,18 @@ class EventSessionManager:
 
         return None
 
+    @staticmethod
+    def _extract_all_track_ids(event: dict) -> Set[int]:
+        """Extract all track_ids from an event (including involved_track_ids for fight)"""
+        track_ids: Set[int] = set()
+        if "track_ids" in event:
+            track_ids.update(event["track_ids"])
+        if "involved_track_ids" in event:
+            track_ids.update(event["involved_track_ids"])
+        if "track_id" in event:
+            track_ids.add(event["track_id"])
+        return track_ids
+
     def _create_session(self, event: dict, camera_config: dict,
                         now: float) -> EventSession:
         """Create a new event session"""
@@ -181,23 +217,23 @@ class EventSessionManager:
         event_type = event.get("sub_type", "")
         camera_name = camera_config.get("name", camera_id)
 
-        # Generate event_id (use event timestamp for consistency)
+        # Generate event_id with millisecond precision + short UUID to avoid collision
         event_ts = event.get("timestamp", now)
         dt = datetime.fromtimestamp(event_ts, tz=timezone.utc)
-        event_id = f"evt_{camera_id}_{event_type}_{dt.strftime('%Y%m%d_%H%M%S')}"
+        ms = int((event_ts % 1) * 1000)
+        short_id = uuid.uuid4().hex[:6]
+        event_id = f"evt_{camera_id}_{event_type}_{dt.strftime('%Y%m%d_%H%M%S')}_{ms:03d}_{short_id}"
 
-        # Calculate resolve_threshold
+        # Calculate resolve_threshold (in seconds, based on cooldown)
+        # Use cooldown as the resolve time — event is resolved only after
+        # no triggers for the full cooldown period
         rules_config = camera_config.get("rules", {})
         type_config = rules_config.get(event_type, {})
-        confirm_frames = type_config.get("confirm_frames", 5)
-        resolve_threshold = confirm_frames * 2
+        cooldown = type_config.get("cooldown", 30)
+        resolve_threshold = cooldown  # time-based (seconds)
 
-        # Extract track_ids
-        track_ids: Set[int] = set()
-        if "track_ids" in event:
-            track_ids = set(event["track_ids"])
-        elif "track_id" in event:
-            track_ids = {event["track_id"]}
+        # Extract all track_ids (including involved participants for fight)
+        track_ids: Set[int] = self._extract_all_track_ids(event)
 
         return EventSession(
             event_id=event_id,
@@ -216,22 +252,19 @@ class EventSessionManager:
         )
 
     def _update_track_ids(self, session: EventSession, event: dict) -> None:
-        """Update session track_ids"""
-        if "track_ids" in event:
-            session.track_ids.update(event["track_ids"])
-        elif "track_id" in event:
-            session.track_ids.add(event["track_id"])
+        """Update session track_ids (includes all involved participants)"""
+        session.track_ids.update(self._extract_all_track_ids(event))
 
     def _should_send_updating(self, session: EventSession) -> bool:
         """Check if an updating message needs to be sent"""
-        mqtt_config = self._mqtt_config_repo.get()
+        mqtt_config = self._get_mqtt_config()
         update_interval = mqtt_config.update_interval
         now = time.time()
         return (now - session.last_publish_time) >= update_interval
 
     def _publish_message(self, session: EventSession) -> None:
         """Build and publish MQTT message"""
-        mqtt_config = self._mqtt_config_repo.get()
+        mqtt_config = self._get_mqtt_config()
         if not mqtt_config.enabled or not mqtt_config.topic:
             return
 
@@ -249,11 +282,14 @@ class EventSessionManager:
         # Build data field (by event type)
         data = {}
         if event_type == "crowd":
+            count = event.get("count", 0)
             data = {
-                "count": event.get("count", 0),
+                "count": count,
                 "track_ids": sorted(session.track_ids),
                 "bbox": event.get("bbox", []),
-                "confidence": event.get("confidence", 0.0),
+                # Crowd confidence: ratio of detected count to threshold
+                # (capped at 1.0, higher count = higher confidence)
+                "confidence": round(min(count / max(event.get("max_count", 5), 1), 1.0), 2) if count > 0 else 0.0,
             }
         elif event_type == "fight":
             data = {
