@@ -114,14 +114,17 @@ export function formatFileSize(bytes: number): string {
 }
 
 /**
- * Format an ISO timestamp string to "HH:mm:ss".
+ * Format a timestamp (ISO string or Unix seconds) to "YYYY-MM-DD HH:mm:ss".
  */
-export function formatTimestamp(ts: string): string {
-  const d = new Date(ts);
+export function formatTimestamp(ts: string | number): string {
+  const d = typeof ts === 'number' ? new Date(ts * 1000) : new Date(ts);
+  const yyyy = d.getFullYear();
+  const MM = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
   const hh = String(d.getHours()).padStart(2, '0');
   const mm = String(d.getMinutes()).padStart(2, '0');
   const ss = String(d.getSeconds()).padStart(2, '0');
-  return `${hh}:${mm}:${ss}`;
+  return `${yyyy}-${MM}-${dd} ${hh}:${mm}:${ss}`;
 }
 
 // ── Event Colours ──

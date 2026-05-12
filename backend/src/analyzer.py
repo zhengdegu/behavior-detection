@@ -17,6 +17,7 @@ from typing import Dict, Any, Optional, Callable
 import cv2
 import numpy as np
 
+from .camera_time import CameraTimeSync
 from .detector import YOLODetector, PoseDetector
 from .detection import Detection
 from .rules.engine import BehaviorEngine
@@ -58,7 +59,8 @@ class CameraAnalyzer:
                  on_frame: Optional[Callable] = None,
                  on_detections: Optional[Callable] = None,
                  restream_url: Optional[str] = None,
-                 event_session_mgr=None):
+                 event_session_mgr=None,
+                 camera_time_sync: Optional[CameraTimeSync] = None):
         self.camera_id = camera_config["id"]
         self.camera_name = camera_config.get("name", self.camera_id)
         self.url = camera_config["url"]
@@ -68,6 +70,7 @@ class CameraAnalyzer:
         self.on_detections = on_detections
         self.restream_url = restream_url
         self._event_session_mgr = event_session_mgr
+        self._camera_time_sync = camera_time_sync
         self._camera_config = camera_config  # Store full config for MQTT
 
         self._running = False
@@ -296,7 +299,11 @@ class CameraAnalyzer:
             pose_dets = self._pose_detector.track(frame)
             self._merge_pose(detections, pose_dets)
 
-        now = time.time()
+        # Use camera-synced time if available, otherwise fall back to server time
+        if self._camera_time_sync:
+            now = self._camera_time_sync.get_camera_time(self.camera_id)
+        else:
+            now = time.time()
         events = self._engine.update(detections, self.camera_id, frame_ts=now)
 
         # Store raw frame (unannotated) for snapshot API

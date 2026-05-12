@@ -85,6 +85,7 @@ os.makedirs(str(OUTPUTS_DIR), exist_ok=True)
 # Global state (injected by main.py)
 _analyzers: Dict[str, Any] = {}
 _model_config: dict = {}  # Model config (loaded from ModelRepository)
+_camera_time_sync = None  # CameraTimeSync instance
 _events: List[Dict[str, Any]] = []
 _events_max = 1000
 _ws_clients: List[WebSocket] = []
@@ -123,6 +124,12 @@ async def _on_startup():
 def register_analyzers(analyzers: dict):
     global _analyzers
     _analyzers = analyzers
+
+
+def register_camera_time_sync(sync):
+    """Inject CameraTimeSync instance (called by main.py)"""
+    global _camera_time_sync
+    _camera_time_sync = sync
 
 
 def register_repositories(camera_repo, model_repo, task_repo):
@@ -210,6 +217,7 @@ class UpdateCameraRequest(BaseModel):
     roi: Optional[List[List[float]]] = None
     rules: Optional[RulesConfig] = None
     mqtt_publish: Optional[CameraMQTTPublishConfig] = None
+    time_offset: Optional[float] = None
 
 
 @app.get("/api/cameras")
@@ -267,6 +275,7 @@ async def create_camera(req: CreateCameraRequest):
         on_detections=push_detections,
         restream_url=restream_url,
         event_session_mgr=_event_session_mgr,
+        camera_time_sync=_camera_time_sync,
     )
     _analyzers[req.id] = analyzer
     analyzer.start()
@@ -305,9 +314,15 @@ async def update_camera(camera_id: str, req: UpdateCameraRequest):
         cfg.rules = req.rules
     if req.mqtt_publish is not None:
         cfg.mqtt_publish = req.mqtt_publish
+    if req.time_offset is not None:
+        cfg.time_offset = req.time_offset
 
     # Persist to database
     _camera_repo.update(cfg)
+
+    # Update time sync offset
+    if _camera_time_sync and req.time_offset is not None:
+        _camera_time_sync.update_manual_offset(camera_id, req.time_offset)
 
     # Update go2rtc stream (when URL changes)
     if _go2rtc_mgr and _go2rtc_mgr.available:
@@ -328,6 +343,7 @@ async def update_camera(camera_id: str, req: UpdateCameraRequest):
         on_detections=push_detections,
         restream_url=restream_url,
         event_session_mgr=_event_session_mgr,
+        camera_time_sync=_camera_time_sync,
     )
     _analyzers[camera_id] = new_analyzer
     new_analyzer.start()
@@ -341,6 +357,7 @@ async def update_camera(camera_id: str, req: UpdateCameraRequest):
         "roi": cfg.roi,
         "rules": cfg.rules.model_dump(),
         "mqtt_publish": cfg.mqtt_publish.model_dump(),
+        "time_offset": cfg.time_offset,
     }
 
 
@@ -388,7 +405,10 @@ async def list_events(
         filtered = [e for e in filtered if e.get("sub_type") == sub_type]
     if camera_id:
         filtered = [e for e in filtered if e.get("camera_id") == camera_id]
-    return filtered[-limit:]
+    # Return latest events first (descending by timestamp)
+    result = filtered[-limit:]
+    result = sorted(result, key=lambda e: e.get("timestamp", 0), reverse=True)
+    return result
 
 
 @app.get("/api/status")
@@ -398,6 +418,15 @@ async def system_status():
         "total_events": len(_events),
         "uptime": time.time(),
     }
+
+
+@app.get("/api/time-sync")
+async def time_sync_status():
+    """Return time synchronization status for all cameras"""
+    if not _camera_time_sync:
+        return {"enabled": False, "cameras": []}
+
+    return {"enabled": True, "cameras": _camera_time_sync.get_all_status()}
 
 
 # ── Video Analysis API ──

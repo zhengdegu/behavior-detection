@@ -69,6 +69,7 @@ class CameraConfig(BaseModel):
     roi: List[List[float]] = Field(default_factory=list)
     rules: RulesConfig = RulesConfig()
     mqtt_publish: CameraMQTTPublishConfig = CameraMQTTPublishConfig()
+    time_offset: Optional[float] = Field(None, description="Camera time offset in seconds (camera_time - server_time). Positive=camera ahead, Negative=camera behind. None=auto-detect via ONVIF.")
 
 
 class ModelConfig(BaseModel):

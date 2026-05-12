@@ -191,3 +191,27 @@ export function getGo2RTCConfig(): Promise<Go2RTCConfig> {
 export function updateGo2RTCConfig(data: Go2RTCConfig): Promise<Go2RTCConfig> {
   return put<Go2RTCConfig>('/api/go2rtc/config', data);
 }
+
+// Time sync
+export interface TimeSyncCamera {
+  camera_id: string;
+  host: string;
+  manual_offset: number | null;
+  auto_offset: number;
+  effective_offset: number;
+  synced: boolean;
+  source: string;
+}
+
+export interface TimeSyncStatus {
+  enabled: boolean;
+  cameras: TimeSyncCamera[];
+}
+
+export function getTimeSyncStatus(): Promise<TimeSyncStatus> {
+  return get<TimeSyncStatus>('/api/time-sync');
+}
+
+export function calibrateCameraTime(cameraId: string, timeOffset: number): Promise<Camera> {
+  return put<Camera>(`/api/cameras/${cameraId}`, { time_offset: timeOffset });
+}

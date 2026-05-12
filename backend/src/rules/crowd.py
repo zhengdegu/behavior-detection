@@ -74,30 +74,37 @@ class CrowdRule(BaseAnomalyRule):
 
         clusters = self._find_clusters(person_dets)
 
+        # Find the largest cluster that exceeds threshold
+        best_cluster = None
         for indices in clusters:
-            count = len(indices)
-            if count < self.max_count:
-                continue
+            if len(indices) >= self.max_count:
+                if best_cluster is None or len(indices) > len(best_cluster):
+                    best_cluster = indices
 
-            tids = sorted(person_dets[i].track_id for i in indices)
-            key = f"crowd_{'_'.join(str(t) for t in tids)}"
+        if best_cluster is None:
+            self._confirm_count.clear()
+            return events
 
-            if self._check_confirm_and_cooldown(key, True, now=now):
-                bbox = self._cluster_bbox(person_dets, indices)
-                cx = sum(person_dets[i].center[0] for i in indices) / count
-                cy = sum(person_dets[i].center[1] for i in indices) / count
-                events.append({
-                    "type": "anomaly",
-                    "sub_type": "crowd",
-                    "camera_id": camera_id,
-                    "count": count,
-                    "center": (cx, cy),
-                    "bbox": bbox,
-                    "track_ids": tids,
-                    "detail": f"Crowd alert: {count} people gathered within {self.radius:.0f}px radius",
-                    "timestamp": now,
-                })
-                logger.info(f"[Crowd] cam={camera_id} count={count} tids={tids}")
-                break
+        # Use camera-level key so that any crowd in this camera shares the same cooldown
+        key = f"crowd_{camera_id}"
+
+        if self._check_confirm_and_cooldown(key, True, now=now):
+            count = len(best_cluster)
+            tids = sorted(person_dets[i].track_id for i in best_cluster)
+            bbox = self._cluster_bbox(person_dets, best_cluster)
+            cx = sum(person_dets[i].center[0] for i in best_cluster) / count
+            cy = sum(person_dets[i].center[1] for i in best_cluster) / count
+            events.append({
+                "type": "anomaly",
+                "sub_type": "crowd",
+                "camera_id": camera_id,
+                "count": count,
+                "center": (cx, cy),
+                "bbox": bbox,
+                "track_ids": tids,
+                "detail": f"Crowd alert: {count} people gathered within {self.radius:.0f}px radius",
+                "timestamp": now,
+            })
+            logger.info(f"[Crowd] cam={camera_id} count={count} tids={tids}")
 
         return events

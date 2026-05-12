@@ -74,7 +74,7 @@ export interface DetectionEvent {
   sub_type: string;
   camera_id: string;
   camera_name: string;
-  timestamp: string;
+  timestamp: string | number;
   detail: string;
   track_ids: number[];
   image?: string;

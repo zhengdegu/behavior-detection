@@ -9,6 +9,7 @@ import os
 import uvicorn
 
 from .analyzer import CameraAnalyzer
+from .camera_time import CameraTimeSync
 from .database import DatabaseManager, CameraRepository, ModelRepository, TaskRepository, MQTTConfigRepository, Go2RTCConfigRepository, migrate_from_yaml
 from .event_session import EventSessionManager
 from .go2rtc import Go2RTCManager
@@ -16,6 +17,7 @@ from .mqtt_publisher import MQTTPublisher
 from .server import (
     app,
     register_analyzers,
+    register_camera_time_sync,
     register_repositories,
     register_go2rtc,
     register_go2rtc_config,
@@ -98,6 +100,13 @@ def main():
     )
 
     # ── 5. Start camera analyzers (using restream_url and on_detections) ──
+    # Initialize camera time sync (ONVIF-based + manual offset)
+    camera_time_sync = CameraTimeSync()
+    for cam in camera_configs:
+        if cam.id and cam.url:
+            camera_time_sync.register_camera(cam.id, cam.url, manual_offset=cam.time_offset)
+    camera_time_sync.start()
+
     analyzers = {}
     for cam in camera_configs:
         cam_id = cam.id
@@ -113,12 +122,14 @@ def main():
             on_detections=push_detections,
             restream_url=restream_url,
             event_session_mgr=event_session_mgr,
+            camera_time_sync=camera_time_sync,
         )
         analyzers[cam_id] = analyzer
         analyzer.start()
 
     # ── 6. Inject into server module ──
     register_analyzers(analyzers)
+    register_camera_time_sync(camera_time_sync)
     register_repositories(camera_repo, model_repo, task_repo)
     register_go2rtc(go2rtc_mgr)
     register_go2rtc_config(go2rtc_config_repo)
@@ -126,6 +137,7 @@ def main():
     logger.info(f"Started {len(analyzers)} camera analyzers")
 
     # ── 7. Register exit cleanup ──
+    atexit.register(camera_time_sync.stop)
     atexit.register(mqtt_publisher.disconnect)
     atexit.register(go2rtc_mgr.stop)
 
