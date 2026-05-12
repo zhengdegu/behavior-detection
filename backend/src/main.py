@@ -59,6 +59,13 @@ def main():
     # Ensure correct port config FIRST (fixes stale volume-mounted yaml)
     go2rtc_mgr._ensure_config()
 
+    # Apply webrtc candidates from database BEFORE starting go2rtc
+    # (go2rtc only reads config at startup, cannot hot-reload webrtc)
+    go2rtc_cfg = go2rtc_config_repo.get()
+    if go2rtc_cfg.webrtc_candidates:
+        go2rtc_mgr.update_webrtc_candidates(go2rtc_cfg.webrtc_candidates)
+        logger.info(f"WebRTC candidates from database: {go2rtc_cfg.webrtc_candidates}")
+
     # Write all RTSP streams to go2rtc config file before starting (go2rtc loads them on startup)
     for cam in camera_configs:
         url = cam.url
@@ -75,12 +82,6 @@ def main():
 
         # Start health check
         go2rtc_mgr.start_health_check()
-
-        # Apply webrtc candidates from database (overrides env var if set)
-        go2rtc_cfg = go2rtc_config_repo.get()
-        if go2rtc_cfg.webrtc_candidates:
-            go2rtc_mgr.update_webrtc_candidates(go2rtc_cfg.webrtc_candidates)
-            logger.info(f"Applied WebRTC candidates from database: {go2rtc_cfg.webrtc_candidates}")
     else:
         logger.warning("go2rtc not started, running without go2rtc (Analyzer direct RTSP connection)")
 

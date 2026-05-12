@@ -83,26 +83,46 @@ class Go2RTCManager:
                            "Please place go2rtc in the data/ directory")
             return False
 
-        # Ensure config file exists
-        self._ensure_config()
+        # Ensure config file exists (only if not already called externally)
+        if not os.path.isfile(self.config_path):
+            self._ensure_config()
 
         try:
             self._process = subprocess.Popen(
                 [binary, "-config", self.config_path],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
             )
             # Wait for startup
-            time.sleep(1)
+            time.sleep(2)
             if self._process.poll() is not None:
-                logger.error("go2rtc failed to start")
+                # Process exited, read output for diagnostics
+                output = self._process.stdout.read().decode(errors="ignore")[:1000]
+                logger.error(f"go2rtc failed to start: {output}")
                 return False
+            
+            # Log go2rtc startup output in background
+            self._start_log_reader()
+            
             logger.info(f"go2rtc started (PID={self._process.pid}), "
                         f"API={self.api_url}, RTSP=:{self.rtsp_port}")
             return True
         except Exception as e:
             logger.error(f"go2rtc startup error: {e}")
             return False
+
+    def _start_log_reader(self):
+        """Read go2rtc stdout/stderr in background and log it"""
+        def _reader():
+            try:
+                for line in self._process.stdout:
+                    msg = line.decode(errors="ignore").rstrip()
+                    if msg:
+                        logger.info(f"[go2rtc] {msg}")
+            except Exception:
+                pass
+        t = threading.Thread(target=_reader, daemon=True)
+        t.start()
 
     def stop(self):
         """Stop go2rtc process"""
@@ -146,10 +166,17 @@ class Go2RTCManager:
                 time.sleep(3)
                 if not self._health_check_running:
                     break
+                # Config file should already be correct on disk, just restart
                 if self.start():
-                    # Re-register all recorded streams
+                    # Re-register all recorded streams via API (config file already has them)
                     for name, url in self._registered_streams.items():
-                        self.add_stream(name, url)
+                        use_ffmpeg = "%" in url and url.startswith("rtsp://")
+                        if not use_ffmpeg:
+                            try:
+                                api_url = f"{self.api_url}/api/streams?name={name}&src={url}"
+                                requests.put(api_url, timeout=10)
+                            except Exception:
+                                pass
                     logger.info("go2rtc restarted and re-registered all streams")
 
     def register_all_streams(self, cameras: list[dict]):
