@@ -181,8 +181,9 @@ class EventSessionManager:
         event_type = event.get("sub_type", "")
         camera_name = camera_config.get("name", camera_id)
 
-        # Generate event_id
-        dt = datetime.now(timezone.utc)
+        # Generate event_id (use event timestamp for consistency)
+        event_ts = event.get("timestamp", now)
+        dt = datetime.fromtimestamp(event_ts, tz=timezone.utc)
         event_id = f"evt_{camera_id}_{event_type}_{dt.strftime('%Y%m%d_%H%M%S')}"
 
         # Calculate resolve_threshold
@@ -268,7 +269,9 @@ class EventSessionManager:
                 "confidence": event.get("confidence", 0.0),
             }
 
-        timestamp = datetime.now(timezone.utc).isoformat()
+        timestamp = datetime.fromtimestamp(
+            event.get("timestamp", time.time()), tz=timezone.utc
+        ).isoformat()
 
         return {
             "event_id": session.event_id,
