@@ -499,7 +499,7 @@ export default function Analyze() {
                   {selected.events.map((ev, idx) => (
                     <div
                       key={`${ev.timestamp}-${idx}`}
-                      onClick={() => seekToTime(ev.timestamp)}
+                      onClick={() => seekToTime(String(ev.timestamp))}
                       className="tl-item flex items-center gap-2 px-3.5 py-2 border-b border-border/30 text-[11px] cursor-pointer transition-colors duration-150 hover:bg-card"
                     >
                       <span className="tl-time font-mono text-green text-[10px] w-12 flex-shrink-0">
