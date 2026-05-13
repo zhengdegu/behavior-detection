@@ -350,22 +350,26 @@ class Go2RTCManager:
 
     @staticmethod
     def _detect_nvenc() -> bool:
-        """Detect if NVIDIA NVENC hardware encoder is available"""
+        """Detect if NVIDIA NVENC hardware encoder is actually usable (not just listed)"""
         try:
             import shutil
             ffmpeg_bin = shutil.which("ffmpeg")
             if not ffmpeg_bin:
                 return False
+            # Actually try to encode a single frame — listing h264_nvenc is not enough
+            # (libnvidia-encode.so.1 may be missing)
             result = subprocess.run(
-                [ffmpeg_bin, "-hide_banner", "-encoders"],
+                [ffmpeg_bin, "-hide_banner", "-loglevel", "error",
+                 "-f", "lavfi", "-i", "testsrc=duration=1:size=64x64:rate=1",
+                 "-c:v", "h264_nvenc", "-frames:v", "1", "-f", "null", "-"],
                 capture_output=True, text=True, timeout=10,
             )
-            has_nvenc = "h264_nvenc" in result.stdout
-            if has_nvenc:
-                logger.info("NVENC hardware encoder detected, using GPU for ffmpeg transcoding")
+            if result.returncode == 0:
+                logger.info("NVENC hardware encoder verified working, using GPU for ffmpeg transcoding")
+                return True
             else:
-                logger.info("NVENC not available, using CPU (libx264) for ffmpeg transcoding")
-            return has_nvenc
+                logger.info(f"NVENC not usable (test encode failed), using CPU (libx264) for ffmpeg transcoding")
+                return False
         except Exception as e:
             logger.warning(f"Failed to detect NVENC: {e}, falling back to CPU encoding")
             return False
