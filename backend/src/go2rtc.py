@@ -314,10 +314,13 @@ class Go2RTCManager:
             config["streams"] = {}
         # For RTSP URLs with encoded characters, use ffmpeg source (go2rtc's built-in RTSP client has poor compatibility with encoded URLs)
         if "%" in rtsp_url and rtsp_url.startswith("rtsp://"):
-            encoder_args = self._get_encoder_args()
+            decode_args, encode_args = self._get_ffmpeg_codec_args()
             stream_value = (
-                f"exec:ffmpeg -hide_banner -rtsp_transport tcp -timeout 10000000 "
-                f"-i {rtsp_url} {encoder_args} "
+                f"exec:ffmpeg -hide_banner {decode_args} "
+                f"-rtsp_transport tcp -timeout 10000000 "
+                f"-i {rtsp_url} -avoid_negative_ts make_zero "
+                f"-fflags nobuffer+genpts+discardcorrupt "
+                f"{encode_args} "
                 f"-g 25 -rtsp_transport tcp -f rtsp {{output}}"
             )
         else:
@@ -325,13 +328,25 @@ class Go2RTCManager:
         config["streams"][stream_name] = stream_value
         self._save_config(config)
 
-    def _get_encoder_args(self) -> str:
-        """Get ffmpeg encoder arguments — uses NVENC (GPU) if available, otherwise libx264 (CPU)"""
+    def _get_ffmpeg_codec_args(self) -> tuple:
+        """Get ffmpeg decode + encode arguments.
+        Returns (decode_args, encode_args) tuple.
+        Uses NVENC (GPU) if available, otherwise libx264 (CPU).
+        """
         if self._has_nvenc is None:
             self._has_nvenc = self._detect_nvenc()
         if self._has_nvenc:
-            return "-c:v h264_nvenc -preset p1 -tune ull"
-        return "-c:v libx264 -preset ultrafast -tune zerolatency"
+            # GPU: hardware accelerated decode + encode (Frigate-style)
+            decode_args = "-threads 2 -hwaccel cuda -hwaccel_output_format cuda"
+            encode_args = "-c:v h264_nvenc -preset p1 -tune ull"
+            return decode_args, encode_args
+        # CPU: software decode (default) + software encode
+        return "", "-c:v libx264 -preset ultrafast -tune zerolatency"
+
+    def _get_encoder_args(self) -> str:
+        """Legacy helper — returns encode args only"""
+        _, encode_args = self._get_ffmpeg_codec_args()
+        return encode_args
 
     @staticmethod
     def _detect_nvenc() -> bool:
