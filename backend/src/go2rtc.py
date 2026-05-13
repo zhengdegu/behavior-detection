@@ -316,10 +316,10 @@ class Go2RTCManager:
         if "%" in rtsp_url and rtsp_url.startswith("rtsp://"):
             decode_args, encode_args = self._get_ffmpeg_codec_args()
             stream_value = (
-                f"exec:ffmpeg -hide_banner {decode_args} "
+                f"exec:ffmpeg -hide_banner -loglevel error {decode_args} "
+                f"-fflags nobuffer+genpts+discardcorrupt "
                 f"-rtsp_transport tcp -timeout 10000000 "
                 f"-i {rtsp_url} -avoid_negative_ts make_zero "
-                f"-fflags nobuffer+genpts+discardcorrupt "
                 f"{encode_args} "
                 f"-g 25 -rtsp_transport tcp -f rtsp {{output}}"
             )
@@ -336,8 +336,8 @@ class Go2RTCManager:
         if self._has_nvenc is None:
             self._has_nvenc = self._detect_nvenc()
         if self._has_nvenc:
-            # GPU: hardware accelerated decode + encode (Frigate-style)
-            decode_args = "-threads 2 -hwaccel cuda -hwaccel_output_format cuda"
+            # GPU: hardware accelerated decode + encode
+            decode_args = "-threads 2 -hwaccel cuda"
             encode_args = "-c:v h264_nvenc -preset p1 -tune ull"
             return decode_args, encode_args
         # CPU: software decode (default) + software encode
