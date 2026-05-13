@@ -56,6 +56,7 @@ class Go2RTCManager:
         self._registered_streams: dict[str, str] = {}
         self._health_check_running: bool = False
         self._health_thread: Optional[threading.Thread] = None
+        self._has_nvenc: Optional[bool] = None  # Cached GPU encoder availability
 
     def get_restream_url(self, stream_name: str) -> str:
         """Get go2rtc restream URL (for ffmpeg/OpenCV to pull stream)"""
@@ -313,15 +314,46 @@ class Go2RTCManager:
             config["streams"] = {}
         # For RTSP URLs with encoded characters, use ffmpeg source (go2rtc's built-in RTSP client has poor compatibility with encoded URLs)
         if "%" in rtsp_url and rtsp_url.startswith("rtsp://"):
+            encoder_args = self._get_encoder_args()
             stream_value = (
                 f"exec:ffmpeg -hide_banner -rtsp_transport tcp -timeout 10000000 "
-                f"-i {rtsp_url} -c:v libx264 -preset ultrafast -tune zerolatency "
+                f"-i {rtsp_url} {encoder_args} "
                 f"-g 25 -rtsp_transport tcp -f rtsp {{output}}"
             )
         else:
             stream_value = rtsp_url
         config["streams"][stream_name] = stream_value
         self._save_config(config)
+
+    def _get_encoder_args(self) -> str:
+        """Get ffmpeg encoder arguments — uses NVENC (GPU) if available, otherwise libx264 (CPU)"""
+        if self._has_nvenc is None:
+            self._has_nvenc = self._detect_nvenc()
+        if self._has_nvenc:
+            return "-c:v h264_nvenc -preset p1 -tune ull"
+        return "-c:v libx264 -preset ultrafast -tune zerolatency"
+
+    @staticmethod
+    def _detect_nvenc() -> bool:
+        """Detect if NVIDIA NVENC hardware encoder is available"""
+        try:
+            import shutil
+            ffmpeg_bin = shutil.which("ffmpeg")
+            if not ffmpeg_bin:
+                return False
+            result = subprocess.run(
+                [ffmpeg_bin, "-hide_banner", "-encoders"],
+                capture_output=True, text=True, timeout=10,
+            )
+            has_nvenc = "h264_nvenc" in result.stdout
+            if has_nvenc:
+                logger.info("NVENC hardware encoder detected, using GPU for ffmpeg transcoding")
+            else:
+                logger.info("NVENC not available, using CPU (libx264) for ffmpeg transcoding")
+            return has_nvenc
+        except Exception as e:
+            logger.warning(f"Failed to detect NVENC: {e}, falling back to CPU encoding")
+            return False
 
     def _remove_from_config_file(self, stream_name: str):
         """Remove stream from go2rtc.yaml"""
