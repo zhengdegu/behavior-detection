@@ -213,3 +213,15 @@ export function getTimeSyncStatus(): Promise<TimeSyncStatus> {
 export function setCameraTimezone(cameraId: string, timezone: string): Promise<Camera> {
   return put<Camera>(`/api/cameras/${cameraId}`, { timezone });
 }
+
+// Manual event trigger (debugging)
+export function triggerManualEvent(
+  cameraId: string,
+  subType: string = 'crowd',
+  detail?: string,
+): Promise<{ message: string; event: unknown }> {
+  return post<{ message: string; event: unknown }>(`/api/cameras/${cameraId}/trigger`, {
+    sub_type: subType,
+    detail: detail || '',
+  });
+}

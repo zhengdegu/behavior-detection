@@ -430,6 +430,90 @@ async def time_sync_status():
     return {"enabled": True, "cameras": _camera_time_sync.get_all_status()}
 
 
+# ── Manual Event Trigger API (for debugging) ──
+
+class ManualEventRequest(BaseModel):
+    sub_type: str = Field("crowd", description="Event type: crowd/fight/fall")
+    detail: str = Field("", description="Custom detail message (optional)")
+
+
+@app.post("/api/cameras/{camera_id}/trigger")
+async def trigger_manual_event(camera_id: str, req: ManualEventRequest):
+    """Manually trigger a test event for a camera — takes snapshot, pushes to MQTT, and adds to event list"""
+    analyzer = _analyzers.get(camera_id)
+    if not analyzer:
+        return JSONResponse({"error": f"Camera '{camera_id}' not found"}, status_code=404)
+
+    frame = analyzer.get_frame()
+    if frame is None:
+        return JSONResponse({"error": "No frame available (camera offline?)"}, status_code=503)
+
+    # Validate sub_type
+    if req.sub_type not in ("crowd", "fight", "fall"):
+        return JSONResponse({"error": "sub_type must be one of: crowd, fight, fall"}, status_code=400)
+
+    now = time.time()
+
+    # Save screenshot
+    ts_str = time.strftime("%Y%m%d_%H%M%S")
+    ms = int((now % 1) * 1000)
+    filename = f"{camera_id}_{req.sub_type}_manual_{ts_str}_{ms:03d}.jpg"
+    filepath = os.path.join(str(EVENTS_DIR), filename)
+    cv2.imwrite(filepath, frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+
+    # Build event
+    cfg = _camera_repo.get_by_id(camera_id) if _camera_repo else None
+    camera_name = cfg.name if cfg else camera_id
+    detail = req.detail or f"Manual test event ({req.sub_type}) triggered for debugging"
+
+    event = {
+        "type": "anomaly",
+        "sub_type": req.sub_type,
+        "camera_id": camera_id,
+        "camera_name": camera_name,
+        "timestamp": now,
+        "detail": detail,
+        "track_ids": [],
+        "bbox": [],
+        "image": filename,
+        "manual": True,
+    }
+
+    # Push to event list + WebSocket broadcast
+    push_event(event)
+
+    # Push to MQTT (bypass event session lifecycle — send immediately as triggered+resolved)
+    if _mqtt_publisher and _mqtt_publisher.is_connected() and _event_session_mgr:
+        mqtt_config = None
+        if _mqtt_config_repo:
+            mqtt_config = _mqtt_config_repo.get()
+        if mqtt_config and mqtt_config.enabled and mqtt_config.topic:
+            # Format timestamp in camera timezone
+            if _camera_time_sync:
+                timestamp_str = _camera_time_sync.format_timestamp(camera_id, now)
+            else:
+                timestamp_str = datetime.fromtimestamp(now).astimezone().isoformat()
+
+            mqtt_message = {
+                "event_id": f"evt_{camera_id}_{req.sub_type}_manual_{ts_str}_{ms:03d}",
+                "status": "triggered",
+                "type": req.sub_type,
+                "camera_id": camera_id,
+                "camera_name": camera_name,
+                "timestamp": timestamp_str,
+                "detail": detail,
+                "data": {"manual": True},
+                "image_url": filename,
+                "duration": 0.0,
+            }
+            _mqtt_publisher.publish(mqtt_config.topic, mqtt_message)
+
+    return {
+        "message": "Event triggered successfully",
+        "event": event,
+    }
+
+
 # ── Video Analysis API ──
 
 def _get_video_duration(filepath: str) -> float:

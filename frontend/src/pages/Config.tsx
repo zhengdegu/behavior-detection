@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Trash2, Pencil, Globe } from 'lucide-react'
+import { Plus, Trash2, Pencil, Globe, Zap } from 'lucide-react'
 import type { Camera, RulesConfig, CreateCameraRequest, CameraMQTTPublishConfig } from '../types'
-import { getCameras, createCamera, updateCamera, deleteCamera, getTimeSyncStatus, setCameraTimezone } from '../api'
+import { getCameras, createCamera, updateCamera, deleteCamera, getTimeSyncStatus, setCameraTimezone, triggerManualEvent } from '../api'
 import type { TimeSyncStatus } from '../api'
 import RoiEditor from '../components/RoiEditor'
 import RuleForm from '../components/RuleForm'
@@ -64,6 +64,11 @@ export default function Config() {
   const [timeSyncStatus, setTimeSyncStatus] = useState<TimeSyncStatus | null>(null)
   const [savingTimezone, setSavingTimezone] = useState(false)
 
+  // Manual trigger state
+  const [triggerType, setTriggerType] = useState<string>('crowd')
+  const [triggering, setTriggering] = useState(false)
+  const [triggerResult, setTriggerResult] = useState<string | null>(null)
+
   // ── Fetch cameras on mount ──
 
   const fetchCameras = useCallback(async () => {
@@ -107,6 +112,23 @@ export default function Config() {
       // silently ignore
     } finally {
       setSavingTimezone(false)
+    }
+  }
+
+  // ── Manual event trigger ──
+
+  const handleTrigger = async () => {
+    if (!selectedId) return
+    setTriggering(true)
+    setTriggerResult(null)
+    try {
+      const res = await triggerManualEvent(selectedId, triggerType)
+      setTriggerResult(res.message)
+      setTimeout(() => setTriggerResult(null), 3000)
+    } catch (e: unknown) {
+      setTriggerResult(e instanceof Error ? e.message : 'Trigger failed')
+    } finally {
+      setTriggering(false)
     }
   }
 
@@ -448,6 +470,38 @@ export default function Config() {
                 )
               })()}
             </div>
+
+            {/* Manual Event Trigger (Debug) */}
+            <div className="mt-3.5 pt-3.5 border-t border-border">
+              <h4 className="text-[10px] font-semibold text-t3 uppercase tracking-wide mb-2.5 flex items-center gap-1.5">
+                <Zap size={11} />
+                Test Event Trigger
+              </h4>
+              <div className="flex items-center gap-2">
+                <select
+                  value={triggerType}
+                  onChange={(e) => setTriggerType(e.target.value)}
+                  className="px-2 py-1.5 rounded-md bg-card text-t1 border border-border text-[11px] outline-none focus:border-green transition-colors duration-150 cursor-pointer"
+                >
+                  <option value="crowd">Crowd</option>
+                  <option value="fight">Fight</option>
+                  <option value="fall">Fall</option>
+                </select>
+                <button
+                  onClick={handleTrigger}
+                  disabled={triggering}
+                  className="px-3 py-1.5 rounded-md bg-orange text-bg text-[10px] font-semibold cursor-pointer hover:opacity-85 transition-opacity duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {triggering ? 'Sending...' : 'Trigger'}
+                </button>
+              </div>
+              {triggerResult && (
+                <div className="mt-1.5 px-2 py-1 rounded-md bg-green/10 border border-green/20 text-green text-[11px]">
+                  {triggerResult}
+                </div>
+              )}
+            </div>
+
             <button
               onClick={handleSave}
               disabled={saving}
