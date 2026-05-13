@@ -321,6 +321,7 @@ class Go2RTCManager:
                 f"-rtsp_transport tcp -timeout 10000000 "
                 f"-i {rtsp_url} -avoid_negative_ts make_zero "
                 f"{encode_args} "
+                f"-b:v 1500k -maxrate 2000k -bufsize 1000k "
                 f"-g 25 -rtsp_transport tcp -f rtsp {{output}}"
             )
         else:
@@ -338,7 +339,7 @@ class Go2RTCManager:
         if self._has_nvenc:
             # GPU: hardware accelerated decode + encode
             decode_args = "-threads 2 -hwaccel cuda"
-            encode_args = "-c:v h264_nvenc -preset p1 -tune ull"
+            encode_args = "-c:v h264_nvenc -preset p1 -tune ull -rc cbr"
             return decode_args, encode_args
         # CPU: software decode (default) + software encode
         return "", "-c:v libx264 -preset ultrafast -tune zerolatency"
