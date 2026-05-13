@@ -195,9 +195,7 @@ export function updateGo2RTCConfig(data: Go2RTCConfig): Promise<Go2RTCConfig> {
 // Time sync
 export interface TimeSyncCamera {
   camera_id: string;
-  host: string;
-  manual_offset: number | null;
-  auto_offset: number;
+  timezone: string | null;
   effective_offset: number;
   synced: boolean;
   source: string;
@@ -212,6 +210,6 @@ export function getTimeSyncStatus(): Promise<TimeSyncStatus> {
   return get<TimeSyncStatus>('/api/time-sync');
 }
 
-export function calibrateCameraTime(cameraId: string, timeOffset: number): Promise<Camera> {
-  return put<Camera>(`/api/cameras/${cameraId}`, { time_offset: timeOffset });
+export function setCameraTimezone(cameraId: string, timezone: string): Promise<Camera> {
+  return put<Camera>(`/api/cameras/${cameraId}`, { timezone });
 }

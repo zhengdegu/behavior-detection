@@ -101,11 +101,11 @@ def main():
     )
 
     # ── 5. Start camera analyzers (using restream_url and on_detections) ──
-    # Initialize camera time sync (ONVIF-based + manual offset)
+    # Initialize camera time sync (timezone-based)
     camera_time_sync = CameraTimeSync()
     for cam in camera_configs:
         if cam.id and cam.url:
-            camera_time_sync.register_camera(cam.id, cam.url, manual_offset=cam.time_offset)
+            camera_time_sync.register_camera(cam.id, cam.url, camera_timezone=cam.timezone)
     camera_time_sync.start()
 
     analyzers = {}

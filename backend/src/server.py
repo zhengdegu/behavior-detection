@@ -217,7 +217,7 @@ class UpdateCameraRequest(BaseModel):
     roi: Optional[List[List[float]]] = None
     rules: Optional[RulesConfig] = None
     mqtt_publish: Optional[CameraMQTTPublishConfig] = None
-    time_offset: Optional[float] = None
+    timezone: Optional[str] = None
 
 
 @app.get("/api/cameras")
@@ -314,15 +314,16 @@ async def update_camera(camera_id: str, req: UpdateCameraRequest):
         cfg.rules = req.rules
     if req.mqtt_publish is not None:
         cfg.mqtt_publish = req.mqtt_publish
-    if req.time_offset is not None:
-        cfg.time_offset = req.time_offset
+    if req.timezone is not None:
+        cfg.timezone = req.timezone if req.timezone != "" else None
 
     # Persist to database
     _camera_repo.update(cfg)
 
-    # Update time sync offset
-    if _camera_time_sync and req.time_offset is not None:
-        _camera_time_sync.update_manual_offset(camera_id, req.time_offset)
+    # Update time sync timezone
+    if _camera_time_sync and req.timezone is not None:
+        tz_value = req.timezone if req.timezone != "" else None
+        _camera_time_sync.update_timezone(camera_id, tz_value)
 
     # Update go2rtc stream (when URL changes)
     if _go2rtc_mgr and _go2rtc_mgr.available:
@@ -357,7 +358,7 @@ async def update_camera(camera_id: str, req: UpdateCameraRequest):
         "roi": cfg.roi,
         "rules": cfg.rules.model_dump(),
         "mqtt_publish": cfg.mqtt_publish.model_dump(),
-        "time_offset": cfg.time_offset,
+        "timezone": cfg.timezone,
     }
 
 
@@ -817,6 +818,14 @@ async def update_mqtt_config(req: UpdateMQTTConfigRequest):
     # Sync update MQTTPublisher connection
     if _mqtt_publisher:
         _mqtt_publisher.update_config(config)
+
+        # Wait briefly for async connection to establish (up to 2 seconds)
+        if config.enabled and config.host:
+            import asyncio
+            for _ in range(20):
+                if _mqtt_publisher.is_connected():
+                    break
+                await asyncio.sleep(0.1)
 
     # Invalidate cached MQTT config in event session manager
     if _event_session_mgr:

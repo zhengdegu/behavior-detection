@@ -64,6 +64,8 @@ export default function System() {
     try {
       const updated = await updateMQTTConfig(mqttConfig)
       setMqttConfig(updated)
+      // Wait briefly for MQTT async connection to establish before checking status
+      await new Promise((r) => setTimeout(r, 1000))
       const sts = await getMQTTStatus()
       setMqttStatus(sts)
     } catch (e: unknown) {

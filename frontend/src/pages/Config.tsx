@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Trash2, Pencil, Clock } from 'lucide-react'
+import { Plus, Trash2, Pencil, Globe } from 'lucide-react'
 import type { Camera, RulesConfig, CreateCameraRequest, CameraMQTTPublishConfig } from '../types'
-import { getCameras, createCamera, updateCamera, deleteCamera, getTimeSyncStatus, calibrateCameraTime } from '../api'
+import { getCameras, createCamera, updateCamera, deleteCamera, getTimeSyncStatus, setCameraTimezone } from '../api'
 import type { TimeSyncStatus } from '../api'
 import RoiEditor from '../components/RoiEditor'
 import RuleForm from '../components/RuleForm'
@@ -60,12 +60,9 @@ export default function Config() {
   const [editUrl, setEditUrl] = useState('')
   const [editMqttPublish, setEditMqttPublish] = useState<CameraMQTTPublishConfig>(DEFAULT_MQTT_PUBLISH)
 
-  // Time calibration state
+  // Timezone state
   const [timeSyncStatus, setTimeSyncStatus] = useState<TimeSyncStatus | null>(null)
-  const [isCalibrating, setIsCalibrating] = useState(false)
-  const [cameraTimeInput, setCameraTimeInput] = useState('')
-  const [calibrateError, setCalibrateError] = useState<string | null>(null)
-  const [calibrateSuccess, setCalibrateSuccess] = useState<string | null>(null)
+  const [savingTimezone, setSavingTimezone] = useState(false)
 
   // ── Fetch cameras on mount ──
 
@@ -94,65 +91,22 @@ export default function Config() {
       setEditName(selected.name)
       setEditUrl(selected.url)
       setEditMqttPublish(selected.mqtt_publish ?? DEFAULT_MQTT_PUBLISH)
-      // Reset calibration state
-      setIsCalibrating(false)
-      setCameraTimeInput('')
-      setCalibrateError(null)
-      setCalibrateSuccess(null)
     }
   }, [selected])
 
-  // ── Time calibration ──
+  // ── Timezone change ──
 
-  const handleCalibrate = async () => {
+  const handleTimezoneChange = async (tz: string) => {
     if (!selectedId) return
-    setCalibrateError(null)
-    setCalibrateSuccess(null)
-
-    if (!cameraTimeInput.trim()) {
-      setCalibrateError('Please enter the camera time')
-      return
-    }
-
-    let cameraDate: Date | null = null
-    const input = cameraTimeInput.trim()
-
-    // Full datetime: YYYY-MM-DD HH:mm:ss
-    const fullMatch = input.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})$/)
-    if (fullMatch) {
-      const [, y, mo, d, h, mi, s] = fullMatch
-      cameraDate = new Date(+y, +mo - 1, +d, +h, +mi, +s)
-    }
-
-    // Time only: HH:mm:ss (use today's date)
-    if (!cameraDate) {
-      const timeMatch = input.match(/^(\d{2}):(\d{2}):(\d{2})$/)
-      if (timeMatch) {
-        const [, h, mi, s] = timeMatch
-        const now = new Date()
-        cameraDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), +h, +mi, +s)
-      }
-    }
-
-    if (!cameraDate || isNaN(cameraDate.getTime())) {
-      setCalibrateError('Invalid format. Use YYYY-MM-DD HH:mm:ss or HH:mm:ss')
-      return
-    }
-
-    const serverNow = Date.now() / 1000
-    const cameraUnix = cameraDate.getTime() / 1000
-    const offset = cameraUnix - serverNow
-
+    setSavingTimezone(true)
     try {
-      await calibrateCameraTime(selectedId, offset)
-      setCalibrateSuccess(`Calibrated! Offset: ${offset >= 0 ? '+' : ''}${offset.toFixed(0)}s`)
-      setIsCalibrating(false)
-      setCameraTimeInput('')
-      // Refresh
+      await setCameraTimezone(selectedId, tz)
       const syncStatus = await getTimeSyncStatus()
       setTimeSyncStatus(syncStatus)
-    } catch (e: unknown) {
-      setCalibrateError(e instanceof Error ? e.message : 'Calibration failed')
+    } catch {
+      // silently ignore
+    } finally {
+      setSavingTimezone(false)
     }
   }
 
@@ -425,97 +379,70 @@ export default function Config() {
               </div>
             </div>
 
-            {/* Time Calibration */}
+            {/* Timezone */}
             <div className="mt-3.5 pt-3.5 border-t border-border">
               <h4 className="text-[10px] font-semibold text-t3 uppercase tracking-wide mb-2.5 flex items-center gap-1.5">
-                <Clock size={11} />
-                Time Calibration
+                <Globe size={11} />
+                Timezone
               </h4>
 
               {(() => {
                 const syncInfo = timeSyncStatus?.cameras.find((c) => c.camera_id === selectedId)
+                const currentTz = syncInfo?.timezone ?? ''
                 const offset = syncInfo?.effective_offset ?? 0
-                const source = syncInfo?.source ?? 'none'
+
+                const COMMON_TIMEZONES = [
+                  { value: '', label: 'Server time (default)' },
+                  { value: 'Asia/Shanghai', label: 'Asia/Shanghai (UTC+8)' },
+                  { value: 'Asia/Tokyo', label: 'Asia/Tokyo (UTC+9)' },
+                  { value: 'Asia/Seoul', label: 'Asia/Seoul (UTC+9)' },
+                  { value: 'Asia/Singapore', label: 'Asia/Singapore (UTC+8)' },
+                  { value: 'Asia/Kolkata', label: 'Asia/Kolkata (UTC+5:30)' },
+                  { value: 'Asia/Dubai', label: 'Asia/Dubai (UTC+4)' },
+                  { value: 'Asia/Bangkok', label: 'Asia/Bangkok (UTC+7)' },
+                  { value: 'Asia/Ho_Chi_Minh', label: 'Asia/Ho_Chi_Minh (UTC+7)' },
+                  { value: 'Asia/Jakarta', label: 'Asia/Jakarta (UTC+7)' },
+                  { value: 'Asia/Taipei', label: 'Asia/Taipei (UTC+8)' },
+                  { value: 'Asia/Hong_Kong', label: 'Asia/Hong_Kong (UTC+8)' },
+                  { value: 'Europe/London', label: 'Europe/London (UTC+0/+1)' },
+                  { value: 'Europe/Paris', label: 'Europe/Paris (UTC+1/+2)' },
+                  { value: 'Europe/Berlin', label: 'Europe/Berlin (UTC+1/+2)' },
+                  { value: 'Europe/Moscow', label: 'Europe/Moscow (UTC+3)' },
+                  { value: 'America/New_York', label: 'America/New_York (UTC-5/-4)' },
+                  { value: 'America/Chicago', label: 'America/Chicago (UTC-6/-5)' },
+                  { value: 'America/Denver', label: 'America/Denver (UTC-7/-6)' },
+                  { value: 'America/Los_Angeles', label: 'America/Los_Angeles (UTC-8/-7)' },
+                  { value: 'Australia/Sydney', label: 'Australia/Sydney (UTC+10/+11)' },
+                  { value: 'Pacific/Auckland', label: 'Pacific/Auckland (UTC+12/+13)' },
+                  { value: 'UTC', label: 'UTC (UTC+0)' },
+                ]
 
                 return (
                   <div className="flex flex-col gap-2">
-                    {/* Current status */}
-                    <div className="flex items-center gap-2 text-[11px]">
-                      <span className="text-t3">Status:</span>
-                      {source === 'none' ? (
-                        <span className="text-orange">Not calibrated (using server time)</span>
-                      ) : (
-                        <span className="text-green">
-                          Offset: {offset >= 0 ? '+' : ''}{offset.toFixed(0)}s ({source})
-                        </span>
-                      )}
-                    </div>
-
-                    {calibrateSuccess && (
-                      <div className="px-2 py-1.5 rounded-md bg-green/10 border border-green/20 text-green text-[11px]">
-                        {calibrateSuccess}
-                      </div>
-                    )}
-
-                    {calibrateError && (
-                      <div className="px-2 py-1.5 rounded-md bg-red/10 border border-red/20 text-red text-[11px]">
-                        {calibrateError}
-                      </div>
-                    )}
-
-                    {isCalibrating ? (
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[10px] text-t3">Enter camera's current time:</label>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            placeholder="2026-05-12 10:30:00"
-                            value={cameraTimeInput}
-                            onChange={(e) => setCameraTimeInput(e.target.value)}
-                            className="flex-1 px-2 py-1.5 rounded-md bg-card text-t1 border border-border font-mono text-[11px] outline-none focus:border-green transition-colors duration-150"
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') handleCalibrate()
-                              if (e.key === 'Escape') { setIsCalibrating(false); setCameraTimeInput('') }
-                            }}
-                            autoFocus
-                          />
-                          <button
-                            onClick={handleCalibrate}
-                            className="px-2.5 py-1.5 rounded-md bg-green text-bg text-[10px] font-semibold cursor-pointer hover:opacity-85 transition-opacity duration-150"
-                          >
-                            OK
-                          </button>
-                          <button
-                            onClick={() => { setIsCalibrating(false); setCameraTimeInput(''); setCalibrateError(null) }}
-                            className="px-2.5 py-1.5 rounded-md bg-card text-t3 text-[10px] border border-border cursor-pointer hover:text-t1 transition-colors duration-150"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                        <span className="text-[9px] text-t3">
-                          Format: YYYY-MM-DD HH:mm:ss or HH:mm:ss
+                    <select
+                      value={currentTz}
+                      onChange={(e) => handleTimezoneChange(e.target.value)}
+                      disabled={savingTimezone}
+                      className="px-2 py-1.5 rounded-md bg-card text-t1 border border-border text-[11px] outline-none w-full focus:border-green transition-colors duration-150 cursor-pointer disabled:opacity-50"
+                    >
+                      {COMMON_TIMEZONES.map((tz) => (
+                        <option key={tz.value} value={tz.value}>
+                          {tz.label}
+                        </option>
+                      ))}
+                    </select>
+                    {currentTz && (
+                      <div className="flex items-center gap-2 text-[11px]">
+                        <span className="text-t3">Offset vs server:</span>
+                        <span className="text-green font-mono">
+                          {offset >= 0 ? '+' : ''}{offset.toFixed(0)}s
                         </span>
                       </div>
-                    ) : (
-                      <button
-                        onClick={() => {
-                          // Pre-fill with current system time
-                          const now = new Date()
-                          const yyyy = now.getFullYear()
-                          const MM = String(now.getMonth() + 1).padStart(2, '0')
-                          const dd = String(now.getDate()).padStart(2, '0')
-                          const hh = String(now.getHours()).padStart(2, '0')
-                          const mi = String(now.getMinutes()).padStart(2, '0')
-                          const ss = String(now.getSeconds()).padStart(2, '0')
-                          setCameraTimeInput(`${yyyy}-${MM}-${dd} ${hh}:${mi}:${ss}`)
-                          setIsCalibrating(true)
-                          setCalibrateError(null)
-                          setCalibrateSuccess(null)
-                        }}
-                        className="self-start px-3 py-1.5 rounded-md bg-card text-t2 text-[10px] border border-border cursor-pointer hover:border-green hover:text-green transition-colors duration-150"
-                      >
-                        Calibrate Time
-                      </button>
+                    )}
+                    {!currentTz && (
+                      <span className="text-[10px] text-t3">
+                        Camera uses server time. Select a timezone if the camera clock differs.
+                      </span>
                     )}
                   </div>
                 )

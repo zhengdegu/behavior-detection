@@ -148,10 +148,18 @@ class DatabaseManager:
         except Exception:
             pass  # Column already exists, ignore
 
-        # Add time_offset column (backward compatible)
+        # Add time_offset column (backward compatible) — deprecated, replaced by timezone
         try:
             conn.execute(
                 "ALTER TABLE cameras ADD COLUMN time_offset REAL DEFAULT NULL"
+            )
+        except Exception:
+            pass  # Column already exists, ignore
+
+        # Add timezone column (replaces time_offset)
+        try:
+            conn.execute(
+                "ALTER TABLE cameras ADD COLUMN timezone TEXT DEFAULT NULL"
             )
         except Exception:
             pass  # Column already exists, ignore
@@ -173,7 +181,7 @@ class CameraRepository:
         conn = self.db.get_connection()
         rows = conn.execute(
             "SELECT id, name, url, detect_config, roi, rules_config, "
-            "mqtt_publish_config, time_offset, created_at, updated_at FROM cameras"
+            "mqtt_publish_config, timezone, created_at, updated_at FROM cameras"
         ).fetchall()
 
         configs: List[CameraConfig] = []
@@ -195,7 +203,7 @@ class CameraRepository:
                         roi=roi,
                         rules=rules,
                         mqtt_publish=mqtt_publish,
-                        time_offset=row["time_offset"],
+                        timezone=row["timezone"],
                     )
                 )
             except (json.JSONDecodeError, Exception) as e:
@@ -209,7 +217,7 @@ class CameraRepository:
         conn = self.db.get_connection()
         row = conn.execute(
             "SELECT id, name, url, detect_config, roi, rules_config, "
-            "mqtt_publish_config, time_offset, created_at, updated_at FROM cameras WHERE id = ?",
+            "mqtt_publish_config, timezone, created_at, updated_at FROM cameras WHERE id = ?",
             (camera_id,),
         ).fetchone()
 
@@ -232,7 +240,7 @@ class CameraRepository:
                 roi=roi,
                 rules=rules,
                 mqtt_publish=mqtt_publish,
-                time_offset=row["time_offset"],
+                timezone=row["timezone"],
             )
         except (json.JSONDecodeError, Exception) as e:
             logger.warning(
@@ -247,7 +255,7 @@ class CameraRepository:
         now = datetime.now(timezone.utc).isoformat()
         conn.execute(
             "INSERT INTO cameras (id, name, url, detect_config, roi, "
-            "rules_config, mqtt_publish_config, time_offset, created_at, updated_at) "
+            "rules_config, mqtt_publish_config, timezone, created_at, updated_at) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 data["id"],
@@ -257,7 +265,7 @@ class CameraRepository:
                 json.dumps(data["roi"]),
                 json.dumps(data["rules"]),
                 json.dumps(data["mqtt_publish"]),
-                data["time_offset"],
+                data["timezone"],
                 now,
                 now,
             ),
@@ -272,7 +280,7 @@ class CameraRepository:
         conn.execute(
             "UPDATE cameras SET name = ?, url = ?, detect_config = ?, "
             "roi = ?, rules_config = ?, mqtt_publish_config = ?, "
-            "time_offset = ?, updated_at = ? WHERE id = ?",
+            "timezone = ?, updated_at = ? WHERE id = ?",
             (
                 data["name"],
                 data["url"],
@@ -280,7 +288,7 @@ class CameraRepository:
                 json.dumps(data["roi"]),
                 json.dumps(data["rules"]),
                 json.dumps(data["mqtt_publish"]),
-                data["time_offset"],
+                data["timezone"],
                 now,
                 data["id"],
             ),
