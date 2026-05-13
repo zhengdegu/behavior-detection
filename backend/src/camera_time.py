@@ -1,17 +1,20 @@
 """
-Camera time synchronization — correct event timestamps to match camera clock.
+Camera time synchronization — format event timestamps in camera's local timezone.
 
 Simplified timezone-based approach:
 - Each camera has a configured timezone (IANA format, e.g. 'Asia/Shanghai')
-- Offset is calculated as: camera_local_time - server_local_time
-- If no timezone is configured, server time is used (offset = 0)
+- Unix timestamps remain unchanged (always server/UTC time)
+- Timezone is applied only when formatting timestamps for display or MQTT output
 
 Usage:
     sync = CameraTimeSync()
-    sync.register_camera("cam01", timezone="Asia/Shanghai")
+    sync.register_camera("cam01", camera_timezone="Asia/Shanghai")
     
-    # In frame processing:
-    camera_time = sync.get_camera_time("cam01")  # Returns corrected Unix timestamp
+    # Format a timestamp in camera's timezone:
+    iso_str = sync.format_timestamp("cam01", unix_ts)  # "2026-05-13T19:30:52+08:00"
+    
+    # Get timezone info:
+    tz = sync.get_timezone("cam01")  # ZoneInfo('Asia/Shanghai') or None
 """
 
 import logging
@@ -28,50 +31,35 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-def _get_timezone_offset_seconds(timezone_str: str) -> float:
-    """
-    Calculate the offset in seconds between the given timezone and the server's local timezone.
-    Returns: camera_utc_offset - server_utc_offset (in seconds)
-    """
-    now = datetime.now(tz.utc)
-    
-    # Camera's UTC offset
-    camera_tz = ZoneInfo(timezone_str)
-    camera_offset = now.astimezone(camera_tz).utcoffset().total_seconds()
-    
-    # Server's UTC offset (local timezone)
-    server_offset = datetime.now().astimezone().utcoffset().total_seconds()
-    
-    return camera_offset - server_offset
-
-
 class CameraTimeSyncEntry:
     """Time sync state for a single camera"""
 
     def __init__(self, camera_id: str, camera_timezone: Optional[str] = None):
         self.camera_id = camera_id
         self.camera_timezone = camera_timezone
+        self._zone_info: Optional[ZoneInfo] = None
+        if camera_timezone:
+            try:
+                self._zone_info = ZoneInfo(camera_timezone)
+            except Exception as e:
+                logger.warning(f"[TimeSync] Invalid timezone '{camera_timezone}' for camera {camera_id}: {e}")
 
     @property
-    def offset(self) -> float:
-        """Calculate effective offset based on timezone difference"""
-        if self.camera_timezone:
-            try:
-                return _get_timezone_offset_seconds(self.camera_timezone)
-            except Exception as e:
-                logger.warning(f"[TimeSync] Invalid timezone '{self.camera_timezone}' for camera {self.camera_id}: {e}")
-                return 0.0
-        return 0.0
+    def zone_info(self) -> Optional[ZoneInfo]:
+        return self._zone_info
 
     @property
     def is_configured(self) -> bool:
         """Whether this camera has a valid timezone configured"""
-        return self.camera_timezone is not None
+        return self._zone_info is not None
 
 
 class CameraTimeSync:
     """
-    Manages time synchronization for all cameras using timezone configuration.
+    Manages timezone configuration for all cameras.
+    
+    Does NOT modify Unix timestamps. Only provides timezone info
+    for formatting timestamps in the camera's local time.
     """
 
     def __init__(self):
@@ -82,7 +70,7 @@ class CameraTimeSync:
                         manual_offset: Optional[float] = None,
                         camera_timezone: Optional[str] = None) -> None:
         """
-        Register a camera for time synchronization.
+        Register a camera for timezone-aware timestamp formatting.
         
         Args:
             camera_id: Camera identifier
@@ -94,14 +82,12 @@ class CameraTimeSync:
             entry = CameraTimeSyncEntry(camera_id, camera_timezone)
             self._entries[camera_id] = entry
 
-            if camera_timezone:
-                offset = entry.offset
-                logger.info(
-                    f"[TimeSync] Camera {camera_id}: timezone={camera_timezone}, "
-                    f"offset={offset:+.0f}s vs server"
-                )
+            if camera_timezone and entry.is_configured:
+                logger.info(f"[TimeSync] Camera {camera_id}: timezone={camera_timezone}")
+            elif camera_timezone:
+                logger.warning(f"[TimeSync] Camera {camera_id}: invalid timezone '{camera_timezone}', using server timezone")
             else:
-                logger.info(f"[TimeSync] Camera {camera_id}: no timezone set, using server time")
+                logger.info(f"[TimeSync] Camera {camera_id}: no timezone set, using server timezone")
 
     def unregister_camera(self, camera_id: str) -> None:
         """Remove a camera from time synchronization"""
@@ -113,11 +99,12 @@ class CameraTimeSync:
         with self._lock:
             entry = self._entries.get(camera_id)
             if entry:
-                entry.camera_timezone = camera_timezone
+                new_entry = CameraTimeSyncEntry(camera_id, camera_timezone)
+                self._entries[camera_id] = new_entry
                 if camera_timezone:
                     logger.info(f"[TimeSync] Camera {camera_id}: timezone updated to {camera_timezone}")
                 else:
-                    logger.info(f"[TimeSync] Camera {camera_id}: timezone cleared, using server time")
+                    logger.info(f"[TimeSync] Camera {camera_id}: timezone cleared, using server timezone")
 
     def update_manual_offset(self, camera_id: str, offset: Optional[float]) -> None:
         """Deprecated: kept for API compatibility. Use update_timezone instead."""
@@ -133,33 +120,72 @@ class CameraTimeSync:
 
     def get_camera_time(self, camera_id: str) -> float:
         """
-        Get the current camera time as a Unix timestamp.
-        Returns server_time + offset (corrected to camera clock).
+        Get the current time as a Unix timestamp.
+        
+        NOTE: Always returns server time (time.time()). Unix timestamps are
+        timezone-independent. Use format_timestamp() or get_timezone() when
+        you need timezone-aware output.
         """
+        return time.time()
+
+    def get_timezone(self, camera_id: str) -> Optional[ZoneInfo]:
+        """Get the ZoneInfo for a camera, or None if not configured"""
         with self._lock:
             entry = self._entries.get(camera_id)
             if entry and entry.is_configured:
-                return time.time() + entry.offset
-        return time.time()
+                return entry.zone_info
+        return None
 
-    def get_offset(self, camera_id: str) -> Tuple[float, bool]:
-        """Get (offset_seconds, is_configured) for a camera"""
+    def get_timezone_str(self, camera_id: str) -> Optional[str]:
+        """Get the timezone string for a camera, or None if not configured"""
         with self._lock:
             entry = self._entries.get(camera_id)
             if entry:
-                return entry.offset, entry.is_configured
+                return entry.camera_timezone
+        return None
+
+    def format_timestamp(self, camera_id: str, unix_ts: float) -> str:
+        """
+        Format a Unix timestamp as ISO 8601 string in the camera's timezone.
+        Falls back to server local timezone if camera timezone is not configured.
+        """
+        camera_tz = self.get_timezone(camera_id)
+        if camera_tz:
+            dt = datetime.fromtimestamp(unix_ts, tz=camera_tz)
+        else:
+            # Use server local timezone
+            dt = datetime.fromtimestamp(unix_ts).astimezone()
+        return dt.isoformat()
+
+    def get_offset(self, camera_id: str) -> Tuple[float, bool]:
+        """Get (offset_seconds_from_utc, is_configured) for a camera"""
+        with self._lock:
+            entry = self._entries.get(camera_id)
+            if entry and entry.is_configured:
+                now = datetime.now(tz.utc)
+                offset = now.astimezone(entry.zone_info).utcoffset().total_seconds()
+                return offset, True
         return 0.0, False
 
     def get_all_status(self) -> list:
         """Get sync status for all cameras"""
+        now = datetime.now(tz.utc)
+        server_offset = datetime.now().astimezone().utcoffset().total_seconds()
+
         with self._lock:
             results = []
             for entry in self._entries.values():
+                if entry.is_configured:
+                    camera_offset = now.astimezone(entry.zone_info).utcoffset().total_seconds()
+                    effective_offset = camera_offset - server_offset
+                else:
+                    effective_offset = 0.0
+
                 results.append({
                     "camera_id": entry.camera_id,
                     "timezone": entry.camera_timezone,
-                    "effective_offset": entry.offset,
+                    "effective_offset": effective_offset,
                     "synced": entry.is_configured,
-                    "source": "timezone" if entry.camera_timezone else "none",
+                    "source": "timezone" if entry.is_configured else "none",
                 })
             return results

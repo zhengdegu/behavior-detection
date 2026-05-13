@@ -94,19 +94,21 @@ def main():
     else:
         logger.info("MQTT not enabled")
 
-    event_session_mgr = EventSessionManager(
-        mqtt_publisher=mqtt_publisher,
-        mqtt_config_repo=mqtt_config_repo,
-        camera_repo=camera_repo,
-    )
-
-    # ── 5. Start camera analyzers (using restream_url and on_detections) ──
-    # Initialize camera time sync (timezone-based)
+    # ── 4. Initialize camera time sync (timezone-based) ──
     camera_time_sync = CameraTimeSync()
     for cam in camera_configs:
         if cam.id and cam.url:
             camera_time_sync.register_camera(cam.id, cam.url, camera_timezone=cam.timezone)
     camera_time_sync.start()
+
+    event_session_mgr = EventSessionManager(
+        mqtt_publisher=mqtt_publisher,
+        mqtt_config_repo=mqtt_config_repo,
+        camera_repo=camera_repo,
+        camera_time_sync=camera_time_sync,
+    )
+
+    # ── 5. Start camera analyzers (using restream_url and on_detections) ──
 
     analyzers = {}
     for cam in camera_configs:

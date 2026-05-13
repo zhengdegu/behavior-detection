@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional, Set
 
 from .config import MQTTConfig, CameraMQTTPublishConfig
+from .camera_time import CameraTimeSync
 from .mqtt_publisher import MQTTPublisher
 
 logger = logging.getLogger(__name__)
@@ -38,10 +39,12 @@ class EventSessionManager:
     """Event session manager — sits between BehaviorEngine and MQTTPublisher"""
 
     def __init__(self, mqtt_publisher: MQTTPublisher,
-                 mqtt_config_repo, camera_repo):
+                 mqtt_config_repo, camera_repo,
+                 camera_time_sync: Optional[CameraTimeSync] = None):
         self._mqtt_publisher = mqtt_publisher
         self._mqtt_config_repo = mqtt_config_repo
         self._camera_repo = camera_repo
+        self._camera_time_sync = camera_time_sync
         self._sessions: Dict[str, EventSession] = {}
         self._lock = threading.Lock()
         # Cached MQTT config to avoid querying database every frame
@@ -305,9 +308,7 @@ class EventSessionManager:
                 "confidence": event.get("confidence", 0.0),
             }
 
-        timestamp = datetime.fromtimestamp(
-            event.get("timestamp", time.time()), tz=timezone.utc
-        ).isoformat()
+        timestamp = self._format_event_timestamp(session.camera_id, event.get("timestamp", time.time()))
 
         return {
             "event_id": session.event_id,
@@ -321,3 +322,11 @@ class EventSessionManager:
             "image_url": session.image_url,
             "duration": round(duration, 1),
         }
+
+    def _format_event_timestamp(self, camera_id: str, unix_ts: float) -> str:
+        """Format Unix timestamp as ISO 8601 in camera's timezone (or server local timezone)"""
+        if self._camera_time_sync:
+            return self._camera_time_sync.format_timestamp(camera_id, unix_ts)
+        # Fallback: server local timezone
+        dt = datetime.fromtimestamp(unix_ts).astimezone()
+        return dt.isoformat()
