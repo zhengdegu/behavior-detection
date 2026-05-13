@@ -52,6 +52,6 @@ RUN mkdir -p data/models data/events data/uploads data/outputs
 EXPOSE 18000 8555/tcp 8555/udp
 
 ENV NVIDIA_VISIBLE_DEVICES=all
-ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
 
 CMD ["python", "-m", "src.main"]
