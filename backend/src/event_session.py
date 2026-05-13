@@ -319,7 +319,7 @@ class EventSessionManager:
             "timestamp": timestamp,
             "detail": event.get("detail", ""),
             "data": data,
-            "image_url": session.image_url,
+            "image_url": f"/events/{session.image_url}" if session.image_url else "",
             "duration": round(duration, 1),
         }
 

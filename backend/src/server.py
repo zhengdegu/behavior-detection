@@ -503,7 +503,7 @@ async def trigger_manual_event(camera_id: str, req: ManualEventRequest):
                 "timestamp": timestamp_str,
                 "detail": detail,
                 "data": {"manual": True},
-                "image_url": filename,
+                "image_url": f"/events/{filename}" if filename else "",
                 "duration": 0.0,
             }
             _mqtt_publisher.publish(mqtt_config.topic, mqtt_message)
