@@ -18,10 +18,17 @@ class CrowdConfig(BaseModel):
 class FightConfig(BaseModel):
     enabled: bool = False
     proximity_radius: float = 150
-    min_speed: float = 60
+    min_speed: float = 80  # raised from 60 to avoid normal walking triggers
     min_persons: int = 2
-    confirm_frames: int = 3
+    confirm_frames: int = 6  # raised from 3 for more robust confirmation
     cooldown: float = 30
+    # Co-moving filter: direction cosine > threshold + low relative speed = walking together
+    co_move_cos_threshold: float = 0.7
+    min_relative_speed: float = 40.0  # px/s, below this = not adversarial
+    # Distance stability: low variance in inter-person distance = co-walking
+    min_distance_variance: float = 10.0  # px², below this = stable distance
+    # Joint overlap: limbs entering opponent's bbox
+    joint_overlap_threshold: int = 1
 
 
 class FallConfig(BaseModel):
@@ -29,8 +36,14 @@ class FallConfig(BaseModel):
     ratio_threshold: float = 1.0
     min_ratio_change: float = 0.5
     min_y_drop: float = 20
-    confirm_frames: int = 2
+    confirm_frames: int = 5
     cooldown: float = 30
+    # Enhanced detection parameters
+    min_hip_velocity: float = 30.0  # min hip drop speed (px/frame) to distinguish fall from bending
+    spine_angle_threshold: float = 45.0  # angle (deg) below which person is upright
+    inactivity_frames: int = 3  # frames of stillness after fall to confirm
+    inactivity_threshold: float = 15.0  # max movement (px) to count as inactive
+    history_size: int = 10  # pose history buffer size
 
 
 class RulesConfig(BaseModel):
