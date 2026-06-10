@@ -431,7 +431,7 @@ class CameraAnalyzer:
             if weekday not in days:
                 continue
             start = CameraAnalyzer._parse_hhmm(period.get("start", "00:00"))
-            end = CameraAnalyzer._parse_hhmm(period.get("end", "23:59"))
+            end = CameraAnalyzer._parse_hhmm(period.get("end", "23:59"), as_end=True)
             if start <= end:
                 # Normal period: e.g. 08:00 - 18:00
                 if start <= current_time <= end:
@@ -443,11 +443,19 @@ class CameraAnalyzer:
         return False
 
     @staticmethod
-    def _parse_hhmm(s: str) -> dt_time:
-        """Parse 'HH:MM' string into datetime.time"""
+    def _parse_hhmm(s: str, as_end: bool = False) -> dt_time:
+        """Parse 'HH:MM' string into datetime.time.
+        
+        Args:
+            as_end: if True and time is "23:59", return time(23, 59, 59) to cover
+                    the full last minute of the day.
+        """
         try:
             parts = s.split(":")
-            return dt_time(int(parts[0]), int(parts[1]))
+            h, m = int(parts[0]), int(parts[1])
+            if as_end and h == 23 and m == 59:
+                return dt_time(23, 59, 59)
+            return dt_time(h, m)
         except (ValueError, IndexError):
             return dt_time(0, 0)
 
