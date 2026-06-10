@@ -62,10 +62,24 @@ class FallConfig(BaseModel):
     schedule: ScheduleConfig = ScheduleConfig()
 
 
+class LoiterConfig(BaseModel):
+    enabled: bool = False
+    min_duration: float = 60.0       # Minimum dwell time in ROI (seconds) before evaluating
+    max_distance: float = 150.0      # Max displacement from initial position (pixels) to count as loitering
+    max_displacement_ratio: float = 0.3  # Net displacement / total path length threshold
+    min_total_path: float = 50.0     # Minimum total path (pixels), filters out purely stationary persons
+    trajectory_window: float = 60.0  # Sliding window for trajectory analysis (seconds)
+    inertia: int = 3                 # Consecutive frames in ROI before counting starts (Frigate-style)
+    confirm_frames: int = 5
+    cooldown: float = 120.0
+    schedule: ScheduleConfig = ScheduleConfig()
+
+
 class RulesConfig(BaseModel):
     crowd: CrowdConfig = CrowdConfig()
     fight: FightConfig = FightConfig()
     fall: FallConfig = FallConfig()
+    loiter: LoiterConfig = LoiterConfig()
 
 
 class DetectConfig(BaseModel):
@@ -88,6 +102,7 @@ class CameraMQTTPublishConfig(BaseModel):
     crowd: bool = True
     fight: bool = True
     fall: bool = True
+    loiter: bool = True
 
 
 class CameraConfig(BaseModel):

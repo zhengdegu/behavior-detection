@@ -1,5 +1,5 @@
 import type { RulesConfig, ScheduleConfig, TimePeriod } from '../types'
-import { Users, Zap, TrendingDown, Clock, Plus, Trash2 } from 'lucide-react'
+import { Users, Zap, TrendingDown, Clock, Plus, Trash2, Footprints } from 'lucide-react'
 
 interface RuleFormProps {
   rules: RulesConfig
@@ -322,7 +322,7 @@ export default function RuleForm({ rules, onChange }: RuleFormProps) {
       </div>
 
       {/* ── Fall Detection ── */}
-      <div>
+      <div className="mb-4 pb-3.5 border-b border-border">
         <SectionHeader
           icon={TrendingDown}
           label="Fall Detection"
@@ -359,6 +359,59 @@ export default function RuleForm({ rules, onChange }: RuleFormProps) {
         <ScheduleEditor
           schedule={rules.fall.schedule ?? DEFAULT_SCHEDULE}
           onChange={(s) => update('fall', { schedule: s })}
+        />
+      </div>
+
+      {/* ── Loiter Detection ── */}
+      <div>
+        <SectionHeader
+          icon={Footprints}
+          label="Loiter Detection"
+          colorClass="bg-yellow/12 text-yellow"
+          enabled={rules.loiter.enabled}
+          onToggle={(v) => update('loiter', { enabled: v })}
+        />
+        <div className="grid grid-cols-2 gap-1.5">
+          <Field
+            label="min_duration"
+            value={rules.loiter.min_duration}
+            unit="s"
+            onChange={(v) => update('loiter', { min_duration: v })}
+          />
+          <Field
+            label="max_distance"
+            value={rules.loiter.max_distance}
+            unit="px"
+            onChange={(v) => update('loiter', { max_distance: v })}
+          />
+          <Field
+            label="max_disp_ratio"
+            value={rules.loiter.max_displacement_ratio}
+            step={0.01}
+            onChange={(v) => update('loiter', { max_displacement_ratio: v })}
+          />
+          <Field
+            label="min_total_path"
+            value={rules.loiter.min_total_path}
+            unit="px"
+            onChange={(v) => update('loiter', { min_total_path: v })}
+          />
+          <Field
+            label="trajectory_window"
+            value={rules.loiter.trajectory_window}
+            unit="s"
+            onChange={(v) => update('loiter', { trajectory_window: v })}
+          />
+          <Field
+            label="cooldown"
+            value={rules.loiter.cooldown}
+            unit="s"
+            onChange={(v) => update('loiter', { cooldown: v })}
+          />
+        </div>
+        <ScheduleEditor
+          schedule={rules.loiter.schedule ?? DEFAULT_SCHEDULE}
+          onChange={(s) => update('loiter', { schedule: s })}
         />
       </div>
     </div>

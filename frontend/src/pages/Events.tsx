@@ -6,7 +6,7 @@ import ImageModal from '../components/ImageModal'
 import type { DetectionEvent } from '../types'
 
 const PAGE_SIZE = 20
-const FILTER_TYPES = ['all', 'crowd', 'fight', 'fall'] as const
+const FILTER_TYPES = ['all', 'crowd', 'fight', 'fall', 'loiter'] as const
 
 /** Gradient background class per event sub_type */
 function thumbBgClass(subType: string): string {

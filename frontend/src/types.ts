@@ -49,10 +49,24 @@ export interface FallConfig {
   schedule?: ScheduleConfig;
 }
 
+export interface LoiterConfig {
+  enabled: boolean;
+  min_duration: number;
+  max_distance: number;
+  max_displacement_ratio: number;
+  min_total_path: number;
+  trajectory_window: number;
+  inertia: number;
+  confirm_frames: number;
+  cooldown: number;
+  schedule?: ScheduleConfig;
+}
+
 export interface RulesConfig {
   crowd: CrowdConfig;
   fight: FightConfig;
   fall: FallConfig;
+  loiter: LoiterConfig;
 }
 
 // ── Camera ──
@@ -164,6 +178,7 @@ export interface CameraMQTTPublishConfig {
   crowd: boolean;
   fight: boolean;
   fall: boolean;
+  loiter: boolean;
 }
 
 // ── go2rtc Config ──

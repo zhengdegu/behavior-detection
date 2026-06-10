@@ -11,6 +11,7 @@ from .base import BaseAnomalyRule
 from .crowd import CrowdRule
 from .fight import FightRule
 from .fall import FallRule
+from .loiter import LoiterRule
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,19 @@ class BehaviorEngine:
                 inactivity_frames=fall_cfg.get("inactivity_frames", 3),
                 inactivity_threshold=fall_cfg.get("inactivity_threshold", 15.0),
                 history_size=fall_cfg.get("history_size", 10),
+            ))
+
+        loiter_cfg = config.get("loiter") or {}
+        if loiter_cfg.get("enabled", False):
+            self.rules.append(LoiterRule(
+                min_duration=loiter_cfg.get("min_duration", 60.0),
+                max_distance=loiter_cfg.get("max_distance", 150.0),
+                max_displacement_ratio=loiter_cfg.get("max_displacement_ratio", 0.3),
+                min_total_path=loiter_cfg.get("min_total_path", 50.0),
+                trajectory_window=loiter_cfg.get("trajectory_window", 60.0),
+                inertia=loiter_cfg.get("inertia", 3),
+                confirm_frames=loiter_cfg.get("confirm_frames", 5),
+                cooldown=loiter_cfg.get("cooldown", 120.0),
             ))
 
     def update(self, detections: List[Detection],

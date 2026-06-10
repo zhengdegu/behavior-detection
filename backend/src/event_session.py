@@ -199,6 +199,12 @@ class EventSessionManager:
                 if event_track_id in session.track_ids:
                     return session
 
+            elif event_type == "loiter":
+                # Loiter events: merge only if same track_id
+                event_track_id = event.get("track_id", -1)
+                if event_track_id in session.track_ids:
+                    return session
+
         return None
 
     @staticmethod

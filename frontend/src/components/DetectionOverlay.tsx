@@ -13,7 +13,7 @@ interface DetectionOverlayProps {
 }
 
 /** Event-related class names that should be drawn in red */
-const EVENT_CLASSES = new Set(['crowd', 'fight', 'fall'])
+const EVENT_CLASSES = new Set(['crowd', 'fight', 'fall', 'loiter'])
 
 function drawDetections(
   ctx: CanvasRenderingContext2D,

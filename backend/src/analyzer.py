@@ -391,6 +391,8 @@ class CameraAnalyzer:
             types.add("fight")
         if rules.get("fall", {}).get("enabled", False):
             types.add("fall")
+        if rules.get("loiter", {}).get("enabled", False):
+            types.add("loiter")
         return types
 
     def _get_skipped_rules_by_schedule(self, frame_ts: float) -> Set[str]:
@@ -410,7 +412,7 @@ class CameraAnalyzer:
         skipped: Set[str] = set()
         rules_cfg = self._camera_config.get("rules", {})
 
-        for rule_name in ("crowd", "fight", "fall"):
+        for rule_name in ("crowd", "fight", "fall", "loiter"):
             cfg = rules_cfg.get(rule_name, {})
             schedule = cfg.get("schedule", {})
             if not schedule.get("enabled", False):
@@ -481,7 +483,7 @@ class CameraAnalyzer:
                 ex1, ey1, ex2, ey2 = [int(v) for v in bbox]
                 sub = event.get("sub_type", "event")
                 evt_color = {"crowd": (0, 0, 255), "fight": (0, 0, 255),
-                             "fall": (0, 165, 255)}.get(sub, (0, 0, 255))
+                             "fall": (0, 165, 255), "loiter": (0, 200, 200)}.get(sub, (0, 0, 255))
                 cv2.rectangle(img, (ex1, ey1), (ex2, ey2), evt_color, 3)
                 cv2.putText(img, sub.upper(), (ex1, max(ey1 - 10, 16)),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, evt_color, 2)
@@ -516,7 +518,7 @@ class CameraAnalyzer:
             if bbox:
                 x1, y1, x2, y2 = [int(v) for v in bbox]
                 color = {"crowd": (0, 0, 255), "fight": (0, 0, 255),
-                         "fall": (0, 165, 255)}.get(sub, (0, 0, 255))
+                         "fall": (0, 165, 255), "loiter": (0, 200, 200)}.get(sub, (0, 0, 255))
                 cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
                 cv2.putText(img, sub.upper(), (x1, y1 - 12),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
