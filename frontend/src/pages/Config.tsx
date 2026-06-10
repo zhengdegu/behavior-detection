@@ -32,6 +32,17 @@ const DEFAULT_RULES: RulesConfig = {
     confirm_frames: 2,
     cooldown: 30,
   },
+  loiter: {
+    enabled: false,
+    min_duration: 60,
+    max_distance: 150,
+    max_displacement_ratio: 0.3,
+    min_total_path: 50,
+    trajectory_window: 60,
+    inertia: 3,
+    confirm_frames: 5,
+    cooldown: 120,
+  },
 }
 
 const DEFAULT_MQTT_PUBLISH: CameraMQTTPublishConfig = {
@@ -39,6 +50,7 @@ const DEFAULT_MQTT_PUBLISH: CameraMQTTPublishConfig = {
   crowd: true,
   fight: true,
   fall: true,
+  loiter: true,
 }
 
 export default function Config() {
