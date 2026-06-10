@@ -7,12 +7,26 @@ from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
+class TimePeriod(BaseModel):
+    """A time period within a day when detection is active"""
+    start: str = "00:00"  # HH:MM format
+    end: str = "23:59"    # HH:MM format, supports cross-midnight e.g. "22:00"-"06:00"
+    days: List[int] = Field(default_factory=lambda: [0, 1, 2, 3, 4, 5, 6])  # 0=Monday, 6=Sunday (ISO weekday)
+
+
+class ScheduleConfig(BaseModel):
+    """Detection schedule — only detect during specified periods"""
+    enabled: bool = False  # False = detect 24/7 (backward compatible)
+    periods: List[TimePeriod] = Field(default_factory=list)
+
+
 class CrowdConfig(BaseModel):
     enabled: bool = False
     max_count: int = 5
     radius: float = 200
     confirm_frames: int = 5
     cooldown: float = 60
+    schedule: ScheduleConfig = ScheduleConfig()
 
 
 class FightConfig(BaseModel):
@@ -29,6 +43,7 @@ class FightConfig(BaseModel):
     min_distance_variance: float = 10.0  # px², below this = stable distance
     # Joint overlap: limbs entering opponent's bbox
     joint_overlap_threshold: int = 1
+    schedule: ScheduleConfig = ScheduleConfig()
 
 
 class FallConfig(BaseModel):
@@ -44,6 +59,7 @@ class FallConfig(BaseModel):
     inactivity_frames: int = 3  # frames of stillness after fall to confirm
     inactivity_threshold: float = 15.0  # max movement (px) to count as inactive
     history_size: int = 10  # pose history buffer size
+    schedule: ScheduleConfig = ScheduleConfig()
 
 
 class RulesConfig(BaseModel):

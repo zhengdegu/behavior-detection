@@ -63,13 +63,21 @@ class BehaviorEngine:
 
     def update(self, detections: List[Detection],
                camera_id: str = "",
-               frame_ts: float = 0.0) -> List[Dict[str, Any]]:
-        """Run all rules, return anomaly event list"""
+               frame_ts: float = 0.0,
+               skip_rules: set = None) -> List[Dict[str, Any]]:
+        """Run all rules, return anomaly event list.
+        
+        Args:
+            skip_rules: set of rule_name strings to skip (schedule-based)
+        """
         if self.roi:
             detections = [d for d in detections
                           if d.track_id < 0 or point_in_polygon(d.foot, self.roi)]
         all_events = []
         for rule in self.rules:
+            if skip_rules and rule.rule_name in skip_rules:
+                rule.reset_confirm()
+                continue
             try:
                 events = rule.update(detections, camera_id, frame_ts=frame_ts)
                 all_events.extend(events)

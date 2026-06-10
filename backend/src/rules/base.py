@@ -39,6 +39,10 @@ class BaseAnomalyRule:
         self._last_trigger[key] = now
         return True
 
+    def reset_confirm(self):
+        """Reset confirm counters — called when schedule skips this rule to prevent cross-period accumulation"""
+        self._confirm_count.clear()
+
     def update(self, detections: List[Detection],
                camera_id: str = "",
                frame_ts: float = 0.0) -> List[Dict[str, Any]]:

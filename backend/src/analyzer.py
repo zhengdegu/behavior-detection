@@ -12,7 +12,8 @@ import subprocess
 import time
 import logging
 import threading
-from typing import Dict, Any, Optional, Callable
+from datetime import datetime, time as dt_time
+from typing import Dict, Any, Optional, Callable, Set
 
 import cv2
 import numpy as np
@@ -21,6 +22,11 @@ from .camera_time import CameraTimeSync
 from .detector import YOLODetector, PoseDetector
 from .detection import Detection
 from .rules.engine import BehaviorEngine
+
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    from backports.zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
 
@@ -304,7 +310,12 @@ class CameraAnalyzer:
             now = self._camera_time_sync.get_camera_time(self.camera_id)
         else:
             now = time.time()
-        events = self._engine.update(detections, self.camera_id, frame_ts=now)
+
+        # Check schedule: determine which rules to skip at current time
+        skip_rules = self._get_skipped_rules_by_schedule(now)
+
+        events = self._engine.update(detections, self.camera_id, frame_ts=now,
+                                     skip_rules=skip_rules)
 
         # Store raw frame (unannotated) for snapshot API
         with self._frame_lock:
@@ -381,6 +392,64 @@ class CameraAnalyzer:
         if rules.get("fall", {}).get("enabled", False):
             types.add("fall")
         return types
+
+    def _get_skipped_rules_by_schedule(self, frame_ts: float) -> Set[str]:
+        """Determine which rules should be skipped based on camera local time and schedule config."""
+        if not self._camera_time_sync:
+            return set()
+
+        camera_tz = self._camera_time_sync.get_timezone(self.camera_id)
+        if camera_tz:
+            local_dt = datetime.fromtimestamp(frame_ts, tz=camera_tz)
+        else:
+            local_dt = datetime.fromtimestamp(frame_ts).astimezone()
+
+        local_time = local_dt.time()
+        weekday = local_dt.weekday()  # 0=Monday, 6=Sunday
+
+        skipped: Set[str] = set()
+        rules_cfg = self._camera_config.get("rules", {})
+
+        for rule_name in ("crowd", "fight", "fall"):
+            cfg = rules_cfg.get(rule_name, {})
+            schedule = cfg.get("schedule", {})
+            if not schedule.get("enabled", False):
+                continue  # schedule disabled = detect 24/7
+            periods = schedule.get("periods", [])
+            if not periods:
+                continue  # no periods defined = detect 24/7
+            if not self._in_any_period(local_time, weekday, periods):
+                skipped.add(rule_name)
+
+        return skipped
+
+    @staticmethod
+    def _in_any_period(current_time: dt_time, weekday: int, periods: list) -> bool:
+        """Check if current_time + weekday falls within any of the given periods."""
+        for period in periods:
+            days = period.get("days", [0, 1, 2, 3, 4, 5, 6])
+            if weekday not in days:
+                continue
+            start = CameraAnalyzer._parse_hhmm(period.get("start", "00:00"))
+            end = CameraAnalyzer._parse_hhmm(period.get("end", "23:59"))
+            if start <= end:
+                # Normal period: e.g. 08:00 - 18:00
+                if start <= current_time <= end:
+                    return True
+            else:
+                # Cross-midnight: e.g. 22:00 - 06:00
+                if current_time >= start or current_time <= end:
+                    return True
+        return False
+
+    @staticmethod
+    def _parse_hhmm(s: str) -> dt_time:
+        """Parse 'HH:MM' string into datetime.time"""
+        try:
+            parts = s.split(":")
+            return dt_time(int(parts[0]), int(parts[1]))
+        except (ValueError, IndexError):
+            return dt_time(0, 0)
 
     def _save_event_screenshot(self, frame: np.ndarray, event: dict,
                                 detections: list) -> Optional[str]:

@@ -5,6 +5,19 @@ export interface DetectConfig {
   confidence: number;
 }
 
+// ── Detection Schedule ──
+
+export interface TimePeriod {
+  start: string; // "HH:MM"
+  end: string;   // "HH:MM"
+  days: number[]; // 0=Monday, 6=Sunday
+}
+
+export interface ScheduleConfig {
+  enabled: boolean;
+  periods: TimePeriod[];
+}
+
 // ── Detection Rules ──
 
 export interface CrowdConfig {
@@ -13,6 +26,7 @@ export interface CrowdConfig {
   radius: number;
   confirm_frames: number;
   cooldown: number;
+  schedule?: ScheduleConfig;
 }
 
 export interface FightConfig {
@@ -22,6 +36,7 @@ export interface FightConfig {
   min_persons: number;
   confirm_frames: number;
   cooldown: number;
+  schedule?: ScheduleConfig;
 }
 
 export interface FallConfig {
@@ -31,6 +46,7 @@ export interface FallConfig {
   min_y_drop: number;
   confirm_frames: number;
   cooldown: number;
+  schedule?: ScheduleConfig;
 }
 
 export interface RulesConfig {

@@ -1,5 +1,5 @@
-import type { RulesConfig } from '../types'
-import { Users, Zap, TrendingDown } from 'lucide-react'
+import type { RulesConfig, ScheduleConfig, TimePeriod } from '../types'
+import { Users, Zap, TrendingDown, Clock, Plus, Trash2 } from 'lucide-react'
 
 interface RuleFormProps {
   rules: RulesConfig
@@ -93,6 +93,141 @@ function SectionHeader({
   )
 }
 
+// ── Day names ──
+
+const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+// ── Schedule Editor ──
+
+function ScheduleEditor({
+  schedule,
+  onChange,
+}: {
+  schedule: ScheduleConfig
+  onChange: (s: ScheduleConfig) => void
+}) {
+  const addPeriod = () => {
+    onChange({
+      ...schedule,
+      periods: [
+        ...schedule.periods,
+        { start: '08:00', end: '18:00', days: [0, 1, 2, 3, 4, 5, 6] },
+      ],
+    })
+  }
+
+  const removePeriod = (index: number) => {
+    onChange({
+      ...schedule,
+      periods: schedule.periods.filter((_, i) => i !== index),
+    })
+  }
+
+  const updatePeriod = (index: number, patch: Partial<TimePeriod>) => {
+    onChange({
+      ...schedule,
+      periods: schedule.periods.map((p, i) =>
+        i === index ? { ...p, ...patch } : p,
+      ),
+    })
+  }
+
+  const toggleDay = (periodIndex: number, day: number) => {
+    const period = schedule.periods[periodIndex]
+    const days = period.days.includes(day)
+      ? period.days.filter((d) => d !== day)
+      : [...period.days, day].sort()
+    updatePeriod(periodIndex, { days })
+  }
+
+  return (
+    <div className="mt-2 pt-2 border-t border-border/50">
+      <div className="flex items-center justify-between mb-1.5">
+        <div className="flex items-center gap-1 text-[10px] text-t3 font-medium">
+          <Clock size={10} />
+          Detection Schedule
+        </div>
+        <Toggle
+          checked={schedule.enabled}
+          onChange={(v) => onChange({ ...schedule, enabled: v })}
+        />
+      </div>
+
+      {schedule.enabled && (
+        <div className="space-y-2">
+          <p className="text-[9px] text-t3">
+            Only detect during these time periods:
+          </p>
+
+          {schedule.periods.map((period, idx) => (
+            <div
+              key={idx}
+              className="p-1.5 rounded-md bg-base border border-border/50"
+            >
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <input
+                  type="time"
+                  value={period.start}
+                  onChange={(e) =>
+                    updatePeriod(idx, { start: e.target.value })
+                  }
+                  className="px-1.5 py-1 rounded bg-card text-t1 border border-border font-mono text-[10px] outline-none focus:border-green transition-colors duration-150"
+                />
+                <span className="text-[10px] text-t3">—</span>
+                <input
+                  type="time"
+                  value={period.end}
+                  onChange={(e) =>
+                    updatePeriod(idx, { end: e.target.value })
+                  }
+                  className="px-1.5 py-1 rounded bg-card text-t1 border border-border font-mono text-[10px] outline-none focus:border-green transition-colors duration-150"
+                />
+                <button
+                  type="button"
+                  onClick={() => removePeriod(idx)}
+                  className="ml-auto p-0.5 rounded text-t3 hover:text-red hover:bg-red/10 cursor-pointer transition-colors duration-150"
+                  aria-label="Remove period"
+                >
+                  <Trash2 size={10} />
+                </button>
+              </div>
+              <div className="flex gap-0.5">
+                {DAY_LABELS.map((label, dayIdx) => (
+                  <button
+                    key={dayIdx}
+                    type="button"
+                    onClick={() => toggleDay(idx, dayIdx)}
+                    className={`px-1 py-0.5 rounded text-[8px] font-medium cursor-pointer transition-colors duration-150 ${
+                      period.days.includes(dayIdx)
+                        ? 'bg-green/20 text-green'
+                        : 'bg-hover text-t3'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          <button
+            type="button"
+            onClick={addPeriod}
+            className="flex items-center gap-1 text-[10px] text-green hover:text-green/80 cursor-pointer transition-colors duration-150"
+          >
+            <Plus size={10} />
+            Add time period
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Default schedule ──
+
+const DEFAULT_SCHEDULE: ScheduleConfig = { enabled: false, periods: [] }
+
 export default function RuleForm({ rules, onChange }: RuleFormProps) {
   // Helper to update a nested rule section
   function update<K extends keyof RulesConfig>(
@@ -140,6 +275,10 @@ export default function RuleForm({ rules, onChange }: RuleFormProps) {
             onChange={(v) => update('crowd', { cooldown: v })}
           />
         </div>
+        <ScheduleEditor
+          schedule={rules.crowd.schedule ?? DEFAULT_SCHEDULE}
+          onChange={(s) => update('crowd', { schedule: s })}
+        />
       </div>
 
       {/* ── Fight Detection ── */}
@@ -176,6 +315,10 @@ export default function RuleForm({ rules, onChange }: RuleFormProps) {
             onChange={(v) => update('fight', { cooldown: v })}
           />
         </div>
+        <ScheduleEditor
+          schedule={rules.fight.schedule ?? DEFAULT_SCHEDULE}
+          onChange={(s) => update('fight', { schedule: s })}
+        />
       </div>
 
       {/* ── Fall Detection ── */}
@@ -213,6 +356,10 @@ export default function RuleForm({ rules, onChange }: RuleFormProps) {
             onChange={(v) => update('fall', { cooldown: v })}
           />
         </div>
+        <ScheduleEditor
+          schedule={rules.fall.schedule ?? DEFAULT_SCHEDULE}
+          onChange={(s) => update('fall', { schedule: s })}
+        />
       </div>
     </div>
   )
