@@ -64,6 +64,8 @@ class LoiterRule(BaseAnomalyRule):
         self._first_seen: Dict[int, float] = {}       # timestamp when inertia passed
         self._initial_pos: Dict[int, Tuple[float, float]] = {}  # position at first_seen
         self._trajectories: Dict[int, deque] = {}     # (x, y, t) history
+        self._miss_count: Dict[int, int] = {}         # frames absent from ROI (grace period)
+        self._max_miss: int = 10  # allow up to 10 frames absence before full cleanup
 
     def update(self, detections: List[Detection],
                camera_id: str = "",
@@ -109,8 +111,6 @@ class LoiterRule(BaseAnomalyRule):
             # ── Check dwell time ──
             dwell_time = frame_ts - self._first_seen[tid]
             if dwell_time < self.min_duration:
-                # Not long enough yet, reset confirm for this track
-                self._confirm_count.pop(f"loiter_{tid}", None)
                 continue
 
             # ── Evaluate spatial metrics ──
@@ -168,6 +168,7 @@ class LoiterRule(BaseAnomalyRule):
         self._first_seen.clear()
         self._initial_pos.clear()
         self._trajectories.clear()
+        self._miss_count.clear()
 
     @staticmethod
     def _trajectory_metrics(traj: deque) -> Tuple[float, float]:
@@ -195,11 +196,23 @@ class LoiterRule(BaseAnomalyRule):
         return net / total_path, total_path
 
     def _cleanup_lost_tracks(self, current_track_ids: set):
-        """Remove state for tracks no longer present."""
-        lost = set(self._first_seen.keys()) - current_track_ids
-        for tid in lost:
-            self._inertia_count.pop(tid, None)
-            self._first_seen.pop(tid, None)
-            self._initial_pos.pop(tid, None)
-            self._trajectories.pop(tid, None)
-            self._confirm_count.pop(f"loiter_{tid}", None)
+        """Remove state for tracks no longer present, with grace period for ROI edge flicker."""
+        # Tracks that are being tracked but not in current detections
+        tracked_tids = set(self._first_seen.keys()) | set(self._inertia_count.keys())
+        absent = tracked_tids - current_track_ids
+
+        for tid in absent:
+            self._miss_count[tid] = self._miss_count.get(tid, 0) + 1
+            if self._miss_count[tid] >= self._max_miss:
+                # Grace period exceeded — fully remove
+                self._inertia_count.pop(tid, None)
+                self._first_seen.pop(tid, None)
+                self._initial_pos.pop(tid, None)
+                self._trajectories.pop(tid, None)
+                self._confirm_count.pop(f"loiter_{tid}", None)
+                self._miss_count.pop(tid, None)
+
+        # Reset miss count for tracks that reappeared
+        for tid in current_track_ids:
+            if tid in self._miss_count:
+                del self._miss_count[tid]
