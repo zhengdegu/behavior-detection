@@ -282,6 +282,13 @@ _PUBLIC_PATH_PREFIXES = (
     "/go2rtc/",        # go2rtc proxy (used by video player)
 )
 
+# Path suffixes that do NOT require authentication (media resources loaded by <img>/<video>)
+_PUBLIC_PATH_SUFFIXES = (
+    "/snapshot",
+    "/first_frame",
+    "/video",
+)
+
 
 class AuthMiddleware(BaseHTTPMiddleware):
     """JWT authentication middleware — protects /api/* routes, allows public paths"""
@@ -293,9 +300,14 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if not path.startswith("/api/"):
             return await call_next(request)
 
-        # Skip public paths
+        # Skip public path prefixes
         for prefix in _PUBLIC_PATH_PREFIXES:
             if path.startswith(prefix):
+                return await call_next(request)
+
+        # Skip media resource paths (snapshot, video, first_frame)
+        for suffix in _PUBLIC_PATH_SUFFIXES:
+            if path.endswith(suffix) or (suffix + "?") in path:
                 return await call_next(request)
 
         # Skip OPTIONS requests (CORS preflight)
@@ -1209,6 +1221,7 @@ async def go2rtc_ws_proxy(websocket: WebSocket):
 @app.api_route("/go2rtc/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
 async def go2rtc_http_proxy(path: str, request: Request):
     """HTTP reverse proxy to go2rtc (static assets + REST API)"""
+    from starlette.requests import ClientDisconnect
     target_url = f"{_GO2RTC_BASE_URL}/{path}"
     async with httpx.AsyncClient() as client:
         try:
@@ -1229,6 +1242,8 @@ async def go2rtc_http_proxy(path: str, request: Request):
             )
         except httpx.ConnectError:
             return JSONResponse({"error": "go2rtc not running"}, status_code=503)
+        except ClientDisconnect:
+            return Response(status_code=499)
 
 
 # ── Detection WebSocket Endpoint ──
