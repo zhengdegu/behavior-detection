@@ -166,6 +166,8 @@ export interface MQTTConfig {
   topic: string;
   enabled: boolean;
   update_interval: number;
+  tls_enabled: boolean;
+  tls_insecure: boolean;
 }
 
 export interface MQTTStatus {

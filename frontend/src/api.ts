@@ -10,6 +10,7 @@ import type {
   MQTTStatus,
   Go2RTCConfig,
 } from './types';
+import { getToken, clearToken } from './auth';
 
 // ── Error class ──
 
@@ -41,6 +42,12 @@ async function request<T>(
     headers['Content-Type'] = 'application/json';
   }
 
+  // Attach auth token
+  const token = getToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const res = await fetch(url, {
     method,
     headers,
@@ -51,6 +58,16 @@ async function request<T>(
           ? JSON.stringify(body)
           : undefined,
   });
+
+  // Handle 401 — redirect to login
+  if (res.status === 401) {
+    clearToken();
+    // Only redirect if not already on login page
+    if (!window.location.pathname.startsWith('/login')) {
+      window.location.href = '/login';
+    }
+    throw new ApiError(401, 'Unauthorized');
+  }
 
   if (!res.ok) {
     let message = res.statusText;
@@ -224,4 +241,17 @@ export function triggerManualEvent(
     sub_type: subType,
     detail: detail || '',
   });
+}
+
+// Auth
+export function login(username: string, password: string): Promise<{ token: string; username: string }> {
+  return post<{ token: string; username: string }>('/api/auth/login', { username, password });
+}
+
+export function changePassword(old_password: string, new_password: string): Promise<{ message: string }> {
+  return put<{ message: string }>('/api/auth/password', { old_password, new_password });
+}
+
+export function getMe(): Promise<{ username: string }> {
+  return get<{ username: string }>('/api/auth/me');
 }

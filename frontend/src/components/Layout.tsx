@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   Radio,
   CalendarClock,
   Settings,
   FlaskConical,
   Monitor,
+  LogOut,
 } from 'lucide-react'
 import type { Camera } from '../types'
 import { getCameras } from '../api'
+import { clearToken } from '../auth'
 
 const navItems = [
   { to: '/', label: 'Live', icon: Radio },
@@ -20,7 +22,7 @@ const navItems = [
 
 export default function Layout() {
   const [cameras, setCameras] = useState<Camera[]>([])
-
+  const navigate = useNavigate()
   useEffect(() => {
     let cancelled = false
     const fetchCameras = () => {
@@ -72,13 +74,20 @@ export default function Layout() {
           ))}
         </div>
 
-        {/* Right: Camera status — hidden on small screens */}
-        <div className="hidden md:flex items-center gap-2 text-[11px] text-t3 font-mono">
+        {/* Right: Camera status + Logout */}
+        <div className="hidden md:flex items-center gap-3 text-[11px] text-t3 font-mono">
           <span
             className="w-1.5 h-1.5 rounded-full bg-green"
             style={{ animation: 'dot-pulse 2s infinite' }}
           />
           <span>{total} cameras · {online} online</span>
+          <button
+            onClick={() => { clearToken(); navigate('/login', { replace: true }) }}
+            className="ml-2 flex items-center gap-1 px-2 py-1 rounded-md text-t3 hover:text-red hover:bg-card cursor-pointer transition-colors duration-150"
+            title="Logout"
+          >
+            <LogOut size={13} />
+          </button>
         </div>
       </nav>
 

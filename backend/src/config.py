@@ -95,6 +95,8 @@ class MQTTConfig(BaseModel):
     topic: str = "behavior-detection/events"
     enabled: bool = False
     update_interval: int = Field(30, ge=5, le=3600)
+    tls_enabled: bool = False
+    tls_insecure: bool = False  # Skip server certificate verification (for self-signed certs)
 
 
 class CameraMQTTPublishConfig(BaseModel):

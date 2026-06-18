@@ -129,12 +129,22 @@ class DatabaseManager:
                 topic TEXT NOT NULL DEFAULT 'behavior-detection/events',
                 enabled INTEGER NOT NULL DEFAULT 0,
                 update_interval INTEGER NOT NULL DEFAULT 30,
+                tls_enabled INTEGER NOT NULL DEFAULT 0,
+                tls_insecure INTEGER NOT NULL DEFAULT 0,
                 updated_at TEXT NOT NULL
             );
 
             CREATE TABLE IF NOT EXISTS go2rtc_config (
                 id TEXT PRIMARY KEY,
                 webrtc_candidates TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL,
+                created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
             """
@@ -163,6 +173,15 @@ class DatabaseManager:
             )
         except Exception:
             pass  # Column already exists, ignore
+
+        # Add TLS columns to mqtt_config (backward compatible)
+        for col, default in [("tls_enabled", 0), ("tls_insecure", 0)]:
+            try:
+                conn.execute(
+                    f"ALTER TABLE mqtt_config ADD COLUMN {col} INTEGER NOT NULL DEFAULT {default}"
+                )
+            except Exception:
+                pass  # Column already exists, ignore
 
         conn.commit()
 
@@ -379,7 +398,7 @@ class MQTTConfigRepository:
         conn = self.db.get_connection()
         row = conn.execute(
             "SELECT host, port, username, password, topic, enabled, "
-            "update_interval FROM mqtt_config WHERE id = ?",
+            "update_interval, tls_enabled, tls_insecure FROM mqtt_config WHERE id = ?",
             (self._DEFAULT_ID,),
         ).fetchone()
 
@@ -392,6 +411,8 @@ class MQTTConfigRepository:
                 topic=row["topic"],
                 enabled=bool(row["enabled"]),
                 update_interval=row["update_interval"],
+                tls_enabled=bool(row["tls_enabled"]),
+                tls_insecure=bool(row["tls_insecure"]),
             )
 
         return MQTTConfig()
@@ -403,7 +424,8 @@ class MQTTConfigRepository:
         conn.execute(
             "INSERT OR REPLACE INTO mqtt_config "
             "(id, host, port, username, password, topic, enabled, "
-            "update_interval, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "update_interval, tls_enabled, tls_insecure, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 self._DEFAULT_ID,
                 config.host,
@@ -413,6 +435,8 @@ class MQTTConfigRepository:
                 config.topic,
                 1 if config.enabled else 0,
                 config.update_interval,
+                1 if config.tls_enabled else 0,
+                1 if config.tls_insecure else 0,
                 now,
             ),
         )
@@ -576,6 +600,54 @@ class TaskRepository:
         conn = self.db.get_connection()
         conn.execute("DELETE FROM analysis_tasks WHERE id = ?", (task_id,))
         conn.commit()
+
+
+# ── UserRepository ──
+
+
+class UserRepository:
+    """User data access for authentication"""
+
+    def __init__(self, db: DatabaseManager):
+        self.db = db
+
+    def get_by_username(self, username: str) -> Optional[dict]:
+        """Get user by username, return dict or None"""
+        conn = self.db.get_connection()
+        row = conn.execute(
+            "SELECT id, username, password_hash, created_at, updated_at FROM users WHERE username = ?",
+            (username,),
+        ).fetchone()
+        if row:
+            return dict(row)
+        return None
+
+    def create(self, username: str, password_hash: str) -> dict:
+        """Create a new user"""
+        conn = self.db.get_connection()
+        now = datetime.now(timezone.utc).isoformat()
+        conn.execute(
+            "INSERT INTO users (username, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?)",
+            (username, password_hash, now, now),
+        )
+        conn.commit()
+        return self.get_by_username(username)  # type: ignore
+
+    def update_password(self, username: str, password_hash: str) -> None:
+        """Update user password"""
+        conn = self.db.get_connection()
+        now = datetime.now(timezone.utc).isoformat()
+        conn.execute(
+            "UPDATE users SET password_hash = ?, updated_at = ? WHERE username = ?",
+            (password_hash, now, username),
+        )
+        conn.commit()
+
+    def count(self) -> int:
+        """Get total user count"""
+        conn = self.db.get_connection()
+        row = conn.execute("SELECT COUNT(*) as cnt FROM users").fetchone()
+        return row["cnt"] if row else 0
 
 
 # ── YAML Migration Tool ──

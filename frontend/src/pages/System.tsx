@@ -9,7 +9,7 @@ export default function System() {
   const [loading, setLoading] = useState(true)
   const [mqttConfig, setMqttConfig] = useState<MQTTConfig>({
     host: '', port: 1883, username: '', password: '', topic: 'behavior-detection/events',
-    enabled: false, update_interval: 30,
+    enabled: false, update_interval: 30, tls_enabled: false, tls_insecure: false,
   })
   const [mqttStatus, setMqttStatus] = useState<MQTTStatus>({ connected: false, active_sessions: 0 })
   const [mqttSaving, setMqttSaving] = useState(false)
@@ -324,6 +324,30 @@ export default function System() {
               className="px-2 py-1.5 rounded-md bg-card text-t1 border border-border font-mono text-[11px] outline-none focus:border-green transition-colors duration-150"
             />
           </div>
+        </div>
+
+        {/* TLS Options */}
+        <div className="flex items-center gap-5 mt-3">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={mqttConfig.tls_enabled}
+              onChange={(e) => setMqttConfig({ ...mqttConfig, tls_enabled: e.target.checked, port: e.target.checked && mqttConfig.port === 1883 ? 8883 : (!e.target.checked && mqttConfig.port === 8883 ? 1883 : mqttConfig.port) })}
+              className="accent-green"
+            />
+            <span className="text-[11px] text-t2">Enable TLS/SSL (port 8883)</span>
+          </label>
+          {mqttConfig.tls_enabled && (
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={mqttConfig.tls_insecure}
+                onChange={(e) => setMqttConfig({ ...mqttConfig, tls_insecure: e.target.checked })}
+                className="accent-orange"
+              />
+              <span className="text-[11px] text-t2">Skip certificate verification (self-signed)</span>
+            </label>
+          )}
         </div>
 
         <div className="flex items-center justify-between mt-3.5">

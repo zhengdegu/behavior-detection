@@ -200,6 +200,122 @@ def push_detections(camera_id: str, timestamp: float, detections: list):
                 clients.remove(ws)
 
 
+# ── Authentication ──
+
+from .auth import hash_password, verify_password, create_token, decode_token
+
+_user_repo = None
+
+
+def register_user_repo(user_repo):
+    """Inject UserRepository instance (called by main.py)"""
+    global _user_repo
+    _user_repo = user_repo
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+
+
+@app.post("/api/auth/login")
+async def auth_login(req: LoginRequest):
+    """Login and return JWT token"""
+    if not _user_repo:
+        return JSONResponse({"error": "Auth not configured"}, status_code=503)
+
+    user = _user_repo.get_by_username(req.username)
+    if not user or not verify_password(req.password, user["password_hash"]):
+        return JSONResponse({"error": "Invalid username or password"}, status_code=401)
+
+    token = create_token(user["username"])
+    return {"token": token, "username": user["username"]}
+
+
+@app.get("/api/auth/me")
+async def auth_me(request: Request):
+    """Get current user info (requires valid token)"""
+    username = _get_current_user(request)
+    if not username:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    return {"username": username}
+
+
+@app.put("/api/auth/password")
+async def auth_change_password(req: ChangePasswordRequest, request: Request):
+    """Change current user's password"""
+    username = _get_current_user(request)
+    if not username:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    if not _user_repo:
+        return JSONResponse({"error": "Auth not configured"}, status_code=503)
+
+    user = _user_repo.get_by_username(username)
+    if not user or not verify_password(req.old_password, user["password_hash"]):
+        return JSONResponse({"error": "Current password is incorrect"}, status_code=400)
+
+    _user_repo.update_password(username, hash_password(req.new_password))
+    return {"message": "Password updated"}
+
+
+def _get_current_user(request: Request) -> Optional[str]:
+    """Extract and validate JWT token from request Authorization header"""
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None
+    token = auth_header[7:]
+    return decode_token(token)
+
+
+# ── Auth Middleware ──
+
+# Paths that do NOT require authentication
+_PUBLIC_PATH_PREFIXES = (
+    "/api/auth/login",
+    "/events/",        # Event screenshots — public access
+    "/go2rtc/",        # go2rtc proxy (used by video player)
+)
+
+
+class AuthMiddleware(BaseHTTPMiddleware):
+    """JWT authentication middleware — protects /api/* routes, allows public paths"""
+
+    async def dispatch(self, request, call_next):
+        path = request.url.path
+
+        # Skip non-API paths (frontend static files, etc.)
+        if not path.startswith("/api/"):
+            return await call_next(request)
+
+        # Skip public paths
+        for prefix in _PUBLIC_PATH_PREFIXES:
+            if path.startswith(prefix):
+                return await call_next(request)
+
+        # Skip OPTIONS requests (CORS preflight)
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
+        # Validate token
+        username = _get_current_user(request)
+        if not username:
+            return JSONResponse(
+                {"error": "Unauthorized", "detail": "Missing or invalid token"},
+                status_code=401,
+            )
+
+        return await call_next(request)
+
+
+app.add_middleware(AuthMiddleware)
+
+
 # ── REST API ──
 
 # ── Request Models ──
@@ -859,6 +975,8 @@ class UpdateMQTTConfigRequest(BaseModel):
     topic: str = "behavior-detection/events"
     enabled: bool = False
     update_interval: int = 30
+    tls_enabled: bool = False
+    tls_insecure: bool = False
 
 
 @app.get("/api/mqtt/config")
@@ -875,6 +993,8 @@ async def get_mqtt_config():
         "topic": config.topic,
         "enabled": config.enabled,
         "update_interval": config.update_interval,
+        "tls_enabled": config.tls_enabled,
+        "tls_insecure": config.tls_insecure,
     }
 
 
@@ -896,6 +1016,8 @@ async def update_mqtt_config(req: UpdateMQTTConfigRequest):
         topic=req.topic,
         enabled=req.enabled,
         update_interval=req.update_interval,
+        tls_enabled=req.tls_enabled,
+        tls_insecure=req.tls_insecure,
     )
     _mqtt_config_repo.save(config)
 
@@ -923,6 +1045,8 @@ async def update_mqtt_config(req: UpdateMQTTConfigRequest):
         "topic": config.topic,
         "enabled": config.enabled,
         "update_interval": config.update_interval,
+        "tls_enabled": config.tls_enabled,
+        "tls_insecure": config.tls_insecure,
     }
 
 

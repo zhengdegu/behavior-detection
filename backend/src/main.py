@@ -10,10 +10,11 @@ import uvicorn
 
 from .analyzer import CameraAnalyzer
 from .camera_time import CameraTimeSync
-from .database import DatabaseManager, CameraRepository, ModelRepository, TaskRepository, MQTTConfigRepository, Go2RTCConfigRepository, migrate_from_yaml
+from .database import DatabaseManager, CameraRepository, ModelRepository, TaskRepository, MQTTConfigRepository, Go2RTCConfigRepository, UserRepository, migrate_from_yaml
 from .event_session import EventSessionManager
 from .go2rtc import Go2RTCManager
 from .mqtt_publisher import MQTTPublisher
+from .auth import hash_password
 from .server import (
     app,
     register_analyzers,
@@ -22,6 +23,7 @@ from .server import (
     register_go2rtc,
     register_go2rtc_config,
     register_mqtt,
+    register_user_repo,
     push_event,
     push_detections,
 )
@@ -45,6 +47,13 @@ def main():
     task_repo = TaskRepository(db)
     mqtt_config_repo = MQTTConfigRepository(db)
     go2rtc_config_repo = Go2RTCConfigRepository(db)
+    user_repo = UserRepository(db)
+
+    # Create default admin user if no users exist
+    if user_repo.count() == 0:
+        default_password = os.environ.get("DEFAULT_ADMIN_PASSWORD", "Item@2025.")
+        user_repo.create("admin", hash_password(default_password))
+        logger.info("Created default admin user (username: admin)")
 
     model_config = model_repo.get()
     model_cfg = model_config.model_dump()
@@ -137,6 +146,7 @@ def main():
     register_go2rtc(go2rtc_mgr)
     register_go2rtc_config(go2rtc_config_repo)
     register_mqtt(mqtt_config_repo, mqtt_publisher, event_session_mgr)
+    register_user_repo(user_repo)
     logger.info(f"Started {len(analyzers)} camera analyzers")
 
     # ── 7. Register exit cleanup ──

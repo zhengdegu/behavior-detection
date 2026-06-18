@@ -44,6 +44,21 @@ class MQTTPublisher:
             if config.username:
                 self._client.username_pw_set(config.username, config.password)
 
+            # Configure TLS (for port 8883 or explicit tls_enabled)
+            if config.tls_enabled:
+                import ssl
+                if config.tls_insecure:
+                    # Skip all certificate verification (self-signed certs)
+                    context = ssl.create_default_context()
+                    context.check_hostname = False
+                    context.verify_mode = ssl.CERT_NONE
+                    self._client.tls_set_context(context)
+                else:
+                    # Verify server certificate against system CA store
+                    context = ssl.create_default_context()
+                    self._client.tls_set_context(context)
+                logger.info("MQTT TLS enabled (insecure=%s)", config.tls_insecure)
+
             # Configure exponential backoff reconnection (1s ~ 60s)
             self._client.reconnect_delay_set(min_delay=1, max_delay=60)
 
