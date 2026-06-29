@@ -95,16 +95,14 @@ class CameraTimeSync:
             self._entries.pop(camera_id, None)
 
     def update_timezone(self, camera_id: str, camera_timezone: Optional[str]) -> None:
-        """Update timezone for a camera"""
+        """Update timezone for a camera. Auto-registers the camera if not already tracked."""
         with self._lock:
-            entry = self._entries.get(camera_id)
-            if entry:
-                new_entry = CameraTimeSyncEntry(camera_id, camera_timezone)
-                self._entries[camera_id] = new_entry
-                if camera_timezone:
-                    logger.info(f"[TimeSync] Camera {camera_id}: timezone updated to {camera_timezone}")
-                else:
-                    logger.info(f"[TimeSync] Camera {camera_id}: timezone cleared, using server timezone")
+            new_entry = CameraTimeSyncEntry(camera_id, camera_timezone)
+            self._entries[camera_id] = new_entry
+            if camera_timezone:
+                logger.info(f"[TimeSync] Camera {camera_id}: timezone updated to {camera_timezone}")
+            else:
+                logger.info(f"[TimeSync] Camera {camera_id}: timezone cleared, using server timezone")
 
     def update_manual_offset(self, camera_id: str, offset: Optional[float]) -> None:
         """Deprecated: kept for API compatibility. Use update_timezone instead."""

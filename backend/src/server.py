@@ -392,6 +392,10 @@ async def create_camera(req: CreateCameraRequest):
     if _go2rtc_mgr and _go2rtc_mgr.available:
         _go2rtc_mgr.add_stream(req.id, req.url)
 
+    # Register to camera time sync
+    if _camera_time_sync:
+        _camera_time_sync.register_camera(req.id, req.url, camera_timezone=None)
+
     # Start analyzer
     cam_dict = cam_cfg.model_dump()
     restream_url = _go2rtc_mgr.get_restream_url(req.id) if (_go2rtc_mgr and _go2rtc_mgr.available) else None
