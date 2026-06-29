@@ -70,6 +70,7 @@ export default function Config() {
   const [editRules, setEditRules] = useState<RulesConfig>(DEFAULT_RULES)
   const [editName, setEditName] = useState('')
   const [editUrl, setEditUrl] = useState('')
+  const [editFps, setEditFps] = useState(5)
   const [editMqttPublish, setEditMqttPublish] = useState<CameraMQTTPublishConfig>(DEFAULT_MQTT_PUBLISH)
 
   // Timezone state
@@ -107,6 +108,7 @@ export default function Config() {
       setEditRules(selected.rules ?? DEFAULT_RULES)
       setEditName(selected.name)
       setEditUrl(selected.url)
+      setEditFps(selected.detect?.fps ?? 5)
       setEditMqttPublish(selected.mqtt_publish ?? DEFAULT_MQTT_PUBLISH)
     }
   }, [selected])
@@ -186,7 +188,7 @@ export default function Config() {
     setSaving(true)
     setError(null)
     try {
-      await updateCamera(selectedId, { name: editName, url: editUrl, roi: editRoi, rules: editRules, mqtt_publish: editMqttPublish })
+      await updateCamera(selectedId, { name: editName, url: editUrl, detect: { fps: editFps, confidence: selected?.detect?.confidence ?? 0.5 }, roi: editRoi, rules: editRules, mqtt_publish: editMqttPublish })
       await fetchCameras()
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Save failed')
@@ -360,6 +362,28 @@ export default function Config() {
 
           {/* Rules side */}
           <div className="p-3.5 overflow-y-auto max-h-[calc(100vh-92px)]">
+            {/* Detection FPS */}
+            <div className="mb-3.5 pb-3.5 border-b border-border">
+              <h4 className="text-[10px] font-semibold text-t3 uppercase tracking-wide mb-2.5">
+                Detection FPS
+              </h4>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min={1}
+                  max={10}
+                  step={1}
+                  value={editFps}
+                  onChange={(e) => setEditFps(Number(e.target.value))}
+                  className="flex-1 h-1.5 rounded-full appearance-none bg-border cursor-pointer accent-green"
+                />
+                <span className="text-xs font-mono text-t1 w-12 text-right">{editFps} fps</span>
+              </div>
+              <p className="text-[10px] text-t3 mt-1.5">
+                Lower FPS reduces GPU load. 2-3 fps is sufficient for behavior detection.
+              </p>
+            </div>
+
             <h3 className="text-xs font-semibold text-t3 mb-3.5">
               Detection Rules
             </h3>
