@@ -33,7 +33,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # ── PyTorch（最后安装，强制覆盖 ultralytics 拉的默认版）──
 ARG BUILD_TYPE=cpu
 RUN if [ "$BUILD_TYPE" = "gpu" ]; then \
-      pip install --no-cache-dir --force-reinstall torch torchvision --index-url https://download.pytorch.org/whl/cu128; \
+      pip install --no-cache-dir --force-reinstall torch torchvision --index-url https://download.pytorch.org/whl/cu128 && \
+      pip install --no-cache-dir tensorrt-cu12; \
     else \
       pip install --no-cache-dir --force-reinstall torch torchvision --index-url https://download.pytorch.org/whl/cpu; \
     fi
