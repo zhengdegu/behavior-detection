@@ -209,6 +209,24 @@ export function updateGo2RTCConfig(data: Go2RTCConfig): Promise<Go2RTCConfig> {
   return put<Go2RTCConfig>('/api/go2rtc/config', data);
 }
 
+// Model config
+export interface ModelConfig {
+  detector_path: string;
+  confidence: number;
+  pose_path: string;
+  pose_confidence: number;
+  tracker_config: string;
+}
+
+export function getModelConfig(): Promise<ModelConfig> {
+  return get<ModelConfig>('/api/model/config');
+}
+
+export function updateModelConfig(data: Partial<ModelConfig>): Promise<ModelConfig> {
+  return put<ModelConfig>('/api/model/config', data);
+}
+
+
 // Time sync
 export interface TimeSyncCamera {
   camera_id: string;

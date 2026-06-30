@@ -147,6 +147,25 @@ class DatabaseManager:
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS detection_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_type TEXT NOT NULL,
+                sub_type TEXT NOT NULL,
+                camera_id TEXT NOT NULL,
+                camera_name TEXT NOT NULL DEFAULT '',
+                timestamp REAL NOT NULL,
+                detail TEXT NOT NULL DEFAULT '',
+                track_ids TEXT NOT NULL DEFAULT '[]',
+                image TEXT DEFAULT NULL,
+                bbox TEXT DEFAULT NULL,
+                data TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_events_camera_id ON detection_events(camera_id);
+            CREATE INDEX IF NOT EXISTS idx_events_sub_type ON detection_events(sub_type);
+            CREATE INDEX IF NOT EXISTS idx_events_timestamp ON detection_events(timestamp DESC);
             """
         )
 
@@ -647,6 +666,110 @@ class UserRepository:
         """Get total user count"""
         conn = self.db.get_connection()
         row = conn.execute("SELECT COUNT(*) as cnt FROM users").fetchone()
+        return row["cnt"] if row else 0
+
+
+# ── EventRepository ──
+
+
+class EventRepository:
+    """Detection event persistence"""
+
+    def __init__(self, db: DatabaseManager):
+        self.db = db
+
+    def save(self, event: dict) -> None:
+        """Persist a detection event to database"""
+        conn = self.db.get_connection()
+        now = datetime.now(timezone.utc).isoformat()
+        conn.execute(
+            "INSERT INTO detection_events "
+            "(event_type, sub_type, camera_id, camera_name, timestamp, detail, "
+            "track_ids, image, bbox, data, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                event.get("type", "anomaly"),
+                event.get("sub_type", ""),
+                event.get("camera_id", ""),
+                event.get("camera_name", ""),
+                event.get("timestamp", 0.0),
+                event.get("detail", ""),
+                json.dumps(event.get("track_ids", [])),
+                event.get("image"),
+                json.dumps(event.get("bbox")) if event.get("bbox") else None,
+                json.dumps({k: v for k, v in event.items()
+                            if k not in ("type", "sub_type", "camera_id", "camera_name",
+                                         "timestamp", "detail", "track_ids", "image", "bbox")}),
+                now,
+            ),
+        )
+        conn.commit()
+
+    def query(self, sub_type: str = None, camera_id: str = None,
+              limit: int = 200) -> List[dict]:
+        """Query events with optional filters, returns latest first"""
+        conn = self.db.get_connection()
+        conditions = []
+        params = []
+        if sub_type:
+            conditions.append("sub_type = ?")
+            params.append(sub_type)
+        if camera_id:
+            conditions.append("camera_id = ?")
+            params.append(camera_id)
+
+        where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        params.append(limit)
+
+        rows = conn.execute(
+            f"SELECT * FROM detection_events {where} ORDER BY timestamp DESC LIMIT ?",
+            params,
+        ).fetchall()
+
+        events = []
+        for row in rows:
+            evt = {
+                "type": row["event_type"],
+                "sub_type": row["sub_type"],
+                "camera_id": row["camera_id"],
+                "camera_name": row["camera_name"],
+                "timestamp": row["timestamp"],
+                "detail": row["detail"],
+                "image": row["image"],
+            }
+            try:
+                evt["track_ids"] = json.loads(row["track_ids"])
+            except (json.JSONDecodeError, TypeError):
+                evt["track_ids"] = []
+            try:
+                if row["bbox"]:
+                    evt["bbox"] = json.loads(row["bbox"])
+            except (json.JSONDecodeError, TypeError):
+                pass
+            # Merge extra data fields
+            try:
+                data = json.loads(row["data"]) if row["data"] else {}
+                evt.update(data)
+            except (json.JSONDecodeError, TypeError):
+                pass
+            events.append(evt)
+        return events
+
+    def count(self, sub_type: str = None, camera_id: str = None) -> int:
+        """Count events with optional filters"""
+        conn = self.db.get_connection()
+        conditions = []
+        params = []
+        if sub_type:
+            conditions.append("sub_type = ?")
+            params.append(sub_type)
+        if camera_id:
+            conditions.append("camera_id = ?")
+            params.append(camera_id)
+        where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        row = conn.execute(
+            f"SELECT COUNT(*) as cnt FROM detection_events {where}", params
+        ).fetchone()
         return row["cnt"] if row else 0
 
 

@@ -105,6 +105,7 @@ _GO2RTC_WS_URL = "ws://127.0.0.1:1984"
 _camera_repo = None
 _model_repo = None
 _task_repo = None
+_event_repo = None
 
 # MQTT component instances (injected by main.py via register_mqtt)
 _mqtt_config_repo = None
@@ -132,21 +133,28 @@ def register_camera_time_sync(sync):
     _camera_time_sync = sync
 
 
-def register_repositories(camera_repo, model_repo, task_repo):
+def register_repositories(camera_repo, model_repo, task_repo, event_repo=None):
     """Inject database Repository instances and model config (called by main.py)"""
-    global _camera_repo, _model_repo, _task_repo, _model_config
+    global _camera_repo, _model_repo, _task_repo, _model_config, _event_repo
     _camera_repo = camera_repo
     _model_repo = model_repo
     _task_repo = task_repo
+    _event_repo = event_repo
     # Load model config from ModelRepository into memory dict (for _run_video_analysis)
     _model_config = model_repo.get().model_dump()
 
 
 def push_event(event: dict):
-    """Receive event, store and broadcast to WebSocket"""
+    """Receive event, store in memory + database, and broadcast to WebSocket"""
     _events.append(event)
     if len(_events) > _events_max:
         _events.pop(0)
+    # Persist to database
+    if _event_repo:
+        try:
+            _event_repo.save(event)
+        except Exception as e:
+            logger.error(f"Failed to persist event: {e}")
     _broadcast_ws(event)
 
 
@@ -533,12 +541,15 @@ async def list_events(
     camera_id: str = Query(None),
     limit: int = Query(50, ge=1, le=500),
 ):
+    # Read from database (persisted across restarts)
+    if _event_repo:
+        return _event_repo.query(sub_type=sub_type, camera_id=camera_id, limit=limit)
+    # Fallback to in-memory (if event_repo not available)
     filtered = _events
     if sub_type:
         filtered = [e for e in filtered if e.get("sub_type") == sub_type]
     if camera_id:
         filtered = [e for e in filtered if e.get("camera_id") == camera_id]
-    # Return latest events first (descending by timestamp)
     result = filtered[-limit:]
     result = sorted(result, key=lambda e: e.get("timestamp", 0), reverse=True)
     return result
@@ -546,9 +557,10 @@ async def list_events(
 
 @app.get("/api/status")
 async def system_status():
+    total_events = _event_repo.count() if _event_repo else len(_events)
     return {
         "cameras": len(_analyzers),
-        "total_events": len(_events),
+        "total_events": total_events,
         "uptime": time.time(),
     }
 
@@ -562,7 +574,46 @@ async def time_sync_status():
     return {"enabled": True, "cameras": _camera_time_sync.get_all_status()}
 
 
-# ── Manual Event Trigger API (for debugging) ──
+# ── Model Configuration API ──
+
+class UpdateModelConfigRequest(BaseModel):
+    detector_path: Optional[str] = None
+    confidence: Optional[float] = None
+    pose_path: Optional[str] = None
+    pose_confidence: Optional[float] = None
+    tracker_config: Optional[str] = None
+
+
+@app.get("/api/model/config")
+async def get_model_config():
+    """Get current model configuration"""
+    if not _model_repo:
+        return JSONResponse({"error": "Model repository not available"}, status_code=500)
+    config = _model_repo.get()
+    return config.model_dump()
+
+
+@app.put("/api/model/config")
+async def update_model_config(req: UpdateModelConfigRequest):
+    """Update model configuration (requires restart to take effect)"""
+    if not _model_repo:
+        return JSONResponse({"error": "Model repository not available"}, status_code=500)
+
+    config = _model_repo.get()
+    if req.detector_path is not None:
+        config.detector_path = req.detector_path
+    if req.confidence is not None:
+        config.confidence = req.confidence
+    if req.pose_path is not None:
+        config.pose_path = req.pose_path
+    if req.pose_confidence is not None:
+        config.pose_confidence = req.pose_confidence
+    if req.tracker_config is not None:
+        config.tracker_config = req.tracker_config
+
+    _model_repo.save(config)
+    return config.model_dump()
+
 
 class ManualEventRequest(BaseModel):
     sub_type: str = Field("crowd", description="Event type: crowd/fight/fall")

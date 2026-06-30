@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Monitor, Wifi, WifiOff, Activity, Cpu, Radio, Video } from 'lucide-react'
 import type { Camera, SystemStatus, MQTTConfig, MQTTStatus, Go2RTCConfig } from '../types'
-import { getCameras, getStatus, getMQTTConfig, updateMQTTConfig, getMQTTStatus, getGo2RTCConfig, updateGo2RTCConfig } from '../api'
+import { getCameras, getStatus, getMQTTConfig, updateMQTTConfig, getMQTTStatus, getGo2RTCConfig, updateGo2RTCConfig, getModelConfig, updateModelConfig } from '../api'
+import type { ModelConfig } from '../api'
 
 export default function System() {
   const [cameras, setCameras] = useState<Camera[]>([])
@@ -16,18 +17,21 @@ export default function System() {
   const [mqttError, setMqttError] = useState<string | null>(null)
   const [go2rtcConfig, setGo2rtcConfig] = useState<Go2RTCConfig>({ webrtc_candidates: '' })
   const [go2rtcSaving, setGo2rtcSaving] = useState(false)
+  const [modelConfig, setModelConfig] = useState<ModelConfig>({ detector_path: '', confidence: 0.5, pose_path: '', pose_confidence: 0.3, tracker_config: 'bytetrack.yaml' })
+  const [modelSaving, setModelSaving] = useState(false)
 
   useEffect(() => {
     let cancelled = false
 
-    Promise.all([getCameras(), getStatus(), getMQTTConfig(), getMQTTStatus(), getGo2RTCConfig()])
-      .then(([camerasData, statusData, mqttCfg, mqttSts, go2rtcCfg]) => {
+    Promise.all([getCameras(), getStatus(), getMQTTConfig(), getMQTTStatus(), getGo2RTCConfig(), getModelConfig()])
+      .then(([camerasData, statusData, mqttCfg, mqttSts, go2rtcCfg, modelCfg]) => {
         if (!cancelled) {
           setCameras(camerasData)
           setStatus(statusData)
           setMqttConfig(mqttCfg)
           setMqttStatus(mqttSts)
           setGo2rtcConfig(go2rtcCfg)
+          setModelConfig(modelCfg)
         }
       })
       .catch(() => {
@@ -84,6 +88,18 @@ export default function System() {
       // silently handle
     } finally {
       setGo2rtcSaving(false)
+    }
+  }
+
+  const handleModelSave = async () => {
+    setModelSaving(true)
+    try {
+      const updated = await updateModelConfig(modelConfig)
+      setModelConfig(updated)
+    } catch {
+      // silently handle
+    } finally {
+      setModelSaving(false)
     }
   }
 
@@ -239,6 +255,74 @@ export default function System() {
             className="px-4 py-1.5 rounded-md bg-green text-bg text-[11px] font-semibold cursor-pointer hover:opacity-85 transition-opacity duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {go2rtcSaving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Model Configuration ── */}
+      <div className="mt-5 bg-bg2 rounded-lg border border-border p-4">
+        <div className="flex items-center justify-between mb-3.5">
+          <div className="flex items-center gap-2">
+            <Cpu size={14} className="text-t3" />
+            <h3 className="text-xs font-semibold text-t3 uppercase tracking-wide">Model Configuration</h3>
+          </div>
+          <span className="text-[9px] text-t3 bg-card px-2 py-0.5 rounded">Requires restart</span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] text-t3 uppercase tracking-wide">Detector Model Path</label>
+            <input
+              type="text"
+              placeholder="data/models/yolo26m.pt"
+              value={modelConfig.detector_path}
+              onChange={(e) => setModelConfig({ ...modelConfig, detector_path: e.target.value })}
+              className="px-2 py-1.5 rounded-md bg-card text-t1 border border-border font-mono text-[11px] outline-none focus:border-green transition-colors duration-150"
+            />
+            <span className="text-[9px] text-t3">Supports .pt (PyTorch) or .engine (TensorRT)</span>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] text-t3 uppercase tracking-wide">Pose Model Path</label>
+            <input
+              type="text"
+              placeholder="data/models/yolo26m-pose.pt"
+              value={modelConfig.pose_path}
+              onChange={(e) => setModelConfig({ ...modelConfig, pose_path: e.target.value })}
+              className="px-2 py-1.5 rounded-md bg-card text-t1 border border-border font-mono text-[11px] outline-none focus:border-green transition-colors duration-150"
+            />
+            <span className="text-[9px] text-t3">Leave empty to disable pose enhancement</span>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] text-t3 uppercase tracking-wide">Detection Confidence</label>
+            <input
+              type="number"
+              min={0.1}
+              max={1.0}
+              step={0.05}
+              value={modelConfig.confidence}
+              onChange={(e) => setModelConfig({ ...modelConfig, confidence: Number(e.target.value) })}
+              className="px-2 py-1.5 rounded-md bg-card text-t1 border border-border font-mono text-[11px] outline-none focus:border-green transition-colors duration-150 w-24"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] text-t3 uppercase tracking-wide">Pose Confidence</label>
+            <input
+              type="number"
+              min={0.1}
+              max={1.0}
+              step={0.05}
+              value={modelConfig.pose_confidence}
+              onChange={(e) => setModelConfig({ ...modelConfig, pose_confidence: Number(e.target.value) })}
+              className="px-2 py-1.5 rounded-md bg-card text-t1 border border-border font-mono text-[11px] outline-none focus:border-green transition-colors duration-150 w-24"
+            />
+          </div>
+        </div>
+        <div className="flex justify-end mt-3">
+          <button
+            onClick={handleModelSave}
+            disabled={modelSaving}
+            className="px-4 py-1.5 rounded-md bg-green text-bg text-[11px] font-semibold cursor-pointer hover:opacity-85 transition-opacity duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {modelSaving ? 'Saving...' : 'Save Model Config'}
           </button>
         </div>
       </div>

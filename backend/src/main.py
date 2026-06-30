@@ -10,7 +10,7 @@ import uvicorn
 
 from .analyzer import CameraAnalyzer
 from .camera_time import CameraTimeSync
-from .database import DatabaseManager, CameraRepository, ModelRepository, TaskRepository, MQTTConfigRepository, Go2RTCConfigRepository, UserRepository, migrate_from_yaml
+from .database import DatabaseManager, CameraRepository, ModelRepository, TaskRepository, MQTTConfigRepository, Go2RTCConfigRepository, UserRepository, EventRepository, migrate_from_yaml
 from .event_session import EventSessionManager
 from .go2rtc import Go2RTCManager
 from .mqtt_publisher import MQTTPublisher
@@ -48,6 +48,7 @@ def main():
     mqtt_config_repo = MQTTConfigRepository(db)
     go2rtc_config_repo = Go2RTCConfigRepository(db)
     user_repo = UserRepository(db)
+    event_repo = EventRepository(db)
 
     # Create default admin user if no users exist
     if user_repo.count() == 0:
@@ -142,7 +143,7 @@ def main():
     # ── 6. Inject into server module ──
     register_analyzers(analyzers)
     register_camera_time_sync(camera_time_sync)
-    register_repositories(camera_repo, model_repo, task_repo)
+    register_repositories(camera_repo, model_repo, task_repo, event_repo)
     register_go2rtc(go2rtc_mgr)
     register_go2rtc_config(go2rtc_config_repo)
     register_mqtt(mqtt_config_repo, mqtt_publisher, event_session_mgr)
