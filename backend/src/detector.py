@@ -25,7 +25,9 @@ class YOLODetector:
                  tracker_config: str = "bytetrack.yaml"):
         from ultralytics import YOLO
         self.model = YOLO(model_path)
-        self.model.to(DEVICE)
+        # Only .pt models support .to(device); exported formats (engine/onnx) handle device internally
+        if model_path.endswith(".pt"):
+            self.model.to(DEVICE)
         self.confidence = confidence
         self.tracker_config = tracker_config
         # Only detect person class (class_id=0)
@@ -73,7 +75,8 @@ class PoseDetector:
                  tracker_config: str = "bytetrack.yaml"):
         from ultralytics import YOLO
         self.model = YOLO(model_path)
-        self.model.to(DEVICE)
+        if model_path.endswith(".pt"):
+            self.model.to(DEVICE)
         self.confidence = confidence
         self.tracker_config = tracker_config
         logger.info(f"Pose model loaded: {model_path}, device: {DEVICE}")
