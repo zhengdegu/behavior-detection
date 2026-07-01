@@ -94,6 +94,8 @@ export default function Config() {
   // Search & filter state
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'online' | 'offline'>('all')
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 20
 
   // ── Fetch cameras on mount ──
 
@@ -125,6 +127,14 @@ export default function Config() {
     }
     return list
   }, [cameras, searchQuery, statusFilter])
+
+  const totalPages = Math.max(1, Math.ceil(filteredCameras.length / pageSize))
+  const pagedCameras = filteredCameras.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, statusFilter])
 
   // ── Sync editing state when selection changes ──
 
@@ -328,7 +338,7 @@ export default function Config() {
         {/* Camera list — scrollable */}
         <div className="flex-1 overflow-y-auto px-1.5 pb-1.5">
           <div className="flex flex-col gap-0.5">
-            {filteredCameras.map((cam) => (
+            {pagedCameras.map((cam) => (
               <div
                 key={cam.id}
                 onClick={() => setSelectedId(cam.id)}
@@ -378,7 +388,7 @@ export default function Config() {
               </div>
             ))}
 
-            {filteredCameras.length === 0 && cameras.length > 0 && (
+            {pagedCameras.length === 0 && cameras.length > 0 && (
               <div className="text-center py-6 text-t3 text-[11px]">
                 No cameras match your search.
               </div>
@@ -393,6 +403,40 @@ export default function Config() {
             )}
           </div>
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-1 px-2.5 py-2 border-t border-border flex-shrink-0">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-1.5 py-0.5 rounded text-[10px] text-t3 hover:text-t1 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed transition-colors duration-150"
+            >
+              ◀
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+              <button
+                key={page}
+                onClick={() => setCurrentPage(page)}
+                className={`w-5 h-5 rounded text-[10px] font-medium cursor-pointer transition-colors duration-150 ${
+                  currentPage === page
+                    ? 'bg-green text-bg'
+                    : 'text-t3 hover:text-t1 hover:bg-card'
+                }`}
+              >
+                {page}
+              </button>
+            ))}
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="px-1.5 py-0.5 rounded text-[10px] text-t3 hover:text-t1 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed transition-colors duration-150"
+            >
+              ▶
+            </button>
+            <span className="text-[9px] text-t3 ml-1.5">{filteredCameras.length} total</span>
+          </div>
+        )}
       </div>
 
       {/* ── Right: Editor area ── */}
