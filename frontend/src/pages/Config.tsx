@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
-import { Plus, Trash2, Pencil, Globe, Zap } from 'lucide-react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { Plus, Trash2, Pencil, Globe, Zap, Search } from 'lucide-react'
 import type { Camera, RulesConfig, CreateCameraRequest, CameraMQTTPublishConfig } from '../types'
 import { getCameras, createCamera, updateCamera, deleteCamera, getTimeSyncStatus, setCameraTimezone, triggerManualEvent } from '../api'
 import type { TimeSyncStatus } from '../api'
@@ -91,6 +91,10 @@ export default function Config() {
   const [triggering, setTriggering] = useState(false)
   const [triggerResult, setTriggerResult] = useState<string | null>(null)
 
+  // Search & filter state
+  const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'online' | 'offline'>('all')
+
   // ── Fetch cameras on mount ──
 
   const fetchCameras = useCallback(async () => {
@@ -106,6 +110,21 @@ export default function Config() {
   useEffect(() => {
     fetchCameras()
   }, [fetchCameras])
+
+  // ── Filtered camera list ──
+
+  const filteredCameras = useMemo(() => {
+    let list = cameras
+    if (statusFilter === 'online') list = list.filter((c) => c.online)
+    if (statusFilter === 'offline') list = list.filter((c) => !c.online)
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      list = list.filter(
+        (c) => c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q),
+      )
+    }
+    return list
+  }, [cameras, searchQuery, statusFilter])
 
   // ── Sync editing state when selection changes ──
 
@@ -209,10 +228,10 @@ export default function Config() {
   return (
     <div className="grid gap-3.5 grid-cols-1 lg:grid-cols-[280px_1fr]">
       {/* ── Left: Camera list panel ── */}
-      <div className="bg-bg2 rounded-lg border border-border p-2.5">
+      <div className="bg-bg2 rounded-lg border border-border flex flex-col max-h-[calc(100vh-92px)]">
         {/* Header */}
-        <div className="flex items-center justify-between mb-2.5">
-          <h3 className="text-xs font-semibold text-t3">Cameras</h3>
+        <div className="flex items-center justify-between px-2.5 py-2.5 border-b border-border flex-shrink-0">
+          <h3 className="text-xs font-semibold text-t3">Cameras <span className="font-mono text-[10px] text-t3/60">{cameras.length}</span></h3>
           <button
             onClick={() => setShowAddForm(!showAddForm)}
             className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-green text-bg text-[11px] font-semibold cursor-pointer hover:opacity-85 transition-opacity duration-150"
@@ -222,16 +241,45 @@ export default function Config() {
           </button>
         </div>
 
+        {/* Search + Filter */}
+        <div className="px-2.5 pt-2 pb-1.5 flex-shrink-0">
+          <div className="relative mb-1.5">
+            <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-t3" />
+            <input
+              type="text"
+              placeholder="Search name or ID..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-7 pr-2 py-1.5 rounded-md bg-card text-t1 border border-border text-[11px] outline-none focus:border-green transition-colors duration-150"
+            />
+          </div>
+          <div className="flex gap-1">
+            {(['all', 'online', 'offline'] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setStatusFilter(f)}
+                className={`px-2 py-0.5 rounded text-[9px] font-medium cursor-pointer transition-colors duration-150 ${
+                  statusFilter === f
+                    ? 'bg-green/15 text-green'
+                    : 'bg-card text-t3 hover:text-t2'
+                }`}
+              >
+                {f === 'all' ? `All` : f === 'online' ? '🟢 Online' : '🔴 Offline'}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Error banner */}
         {error && (
-          <div className="mb-2 px-2 py-1.5 rounded-md bg-red/10 border border-red/20 text-red text-[11px]">
+          <div className="mx-2.5 mb-1.5 px-2 py-1.5 rounded-md bg-red/10 border border-red/20 text-red text-[11px] flex-shrink-0">
             {error}
           </div>
         )}
 
         {/* Inline add form */}
         {showAddForm && (
-          <div className="mb-2.5 p-2.5 rounded-md bg-card border border-border">
+          <div className="mx-2.5 mb-1.5 p-2.5 rounded-md bg-card border border-border flex-shrink-0">
             <div className="flex flex-col gap-1.5">
               <input
                 type="text"
@@ -277,63 +325,73 @@ export default function Config() {
           </div>
         )}
 
-        {/* Camera list */}
-        <div className="flex flex-col gap-0.5">
-          {cameras.map((cam) => (
-            <div
-              key={cam.id}
-              onClick={() => setSelectedId(cam.id)}
-              className={`flex items-center justify-between px-2.5 py-2 rounded-md cursor-pointer transition-all duration-150 ${
-                selectedId === cam.id
-                  ? 'bg-card border-l-2 border-l-green'
-                  : 'hover:bg-card'
-              }`}
-            >
-              <div className="min-w-0 flex-1">
-                <div className="text-xs font-medium text-t1 truncate">
-                  {cam.name}
+        {/* Camera list — scrollable */}
+        <div className="flex-1 overflow-y-auto px-1.5 pb-1.5">
+          <div className="flex flex-col gap-0.5">
+            {filteredCameras.map((cam) => (
+              <div
+                key={cam.id}
+                onClick={() => setSelectedId(cam.id)}
+                className={`flex items-center justify-between px-2 py-1.5 rounded-md cursor-pointer transition-all duration-150 ${
+                  selectedId === cam.id
+                    ? 'bg-card border-l-2 border-l-green'
+                    : 'hover:bg-card'
+                }`}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                        cam.online ? 'bg-green' : 'bg-red/60'
+                      }`}
+                    />
+                    <span className="text-[11px] font-medium text-t1 truncate">
+                      {cam.name}
+                    </span>
+                  </div>
+                  <div className="font-mono text-[9px] text-t3 truncate mt-0.5 pl-3">
+                    {cam.id}
+                  </div>
                 </div>
-                <div className="font-mono text-[9px] text-t3 truncate mt-0.5">
-                  {cam.url}
+                <div className="flex items-center gap-1 ml-1.5 flex-shrink-0">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setSelectedId(cam.id)
+                    }}
+                    className="p-0.5 text-t3 hover:text-green cursor-pointer transition-colors duration-150"
+                    aria-label={`Edit camera ${cam.name}`}
+                  >
+                    <Pencil size={11} />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDelete(cam.id)
+                    }}
+                    className="p-0.5 text-t3 hover:text-red cursor-pointer transition-colors duration-150"
+                    aria-label={`Delete camera ${cam.name}`}
+                  >
+                    <Trash2 size={11} />
+                  </button>
                 </div>
               </div>
-              <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
-                <span
-                  className={`w-1.5 h-1.5 rounded-full ${
-                    cam.online ? 'bg-green' : 'bg-red'
-                  }`}
-                />
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setSelectedId(cam.id)
-                  }}
-                  className="text-t3 hover:text-green cursor-pointer transition-colors duration-150"
-                  aria-label={`Edit camera ${cam.name}`}
-                >
-                  <Pencil size={12} />
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleDelete(cam.id)
-                  }}
-                  className="text-t3 hover:text-red cursor-pointer transition-colors duration-150"
-                  aria-label={`Delete camera ${cam.name}`}
-                >
-                  <Trash2 size={12} />
-                </button>
-              </div>
-            </div>
-          ))}
+            ))}
 
-          {cameras.length === 0 && !showAddForm && (
-            <div className="text-center py-6 text-t3 text-[11px]">
-              No cameras configured.
-              <br />
-              Click "+ Add" to get started.
-            </div>
-          )}
+            {filteredCameras.length === 0 && cameras.length > 0 && (
+              <div className="text-center py-6 text-t3 text-[11px]">
+                No cameras match your search.
+              </div>
+            )}
+
+            {cameras.length === 0 && !showAddForm && (
+              <div className="text-center py-6 text-t3 text-[11px]">
+                No cameras configured.
+                <br />
+                Click "+ Add" to get started.
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
