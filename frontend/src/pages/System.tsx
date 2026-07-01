@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Monitor, Wifi, WifiOff, Activity, Cpu, Radio, Video } from 'lucide-react'
 import type { Camera, SystemStatus, MQTTConfig, MQTTStatus, Go2RTCConfig } from '../types'
 import { getCameras, getStatus, getMQTTConfig, updateMQTTConfig, getMQTTStatus, getGo2RTCConfig, updateGo2RTCConfig, getModelConfig, updateModelConfig } from '../api'
@@ -19,6 +19,10 @@ export default function System() {
   const [go2rtcSaving, setGo2rtcSaving] = useState(false)
   const [modelConfig, setModelConfig] = useState<ModelConfig>({ detector_path: '', confidence: 0.5, pose_path: '', pose_confidence: 0.3, tracker_config: 'bytetrack.yaml' })
   const [modelSaving, setModelSaving] = useState(false)
+
+  // Pagination state
+  const [cameraPage, setCameraPage] = useState(1)
+  const cameraPageSize = 20
 
   useEffect(() => {
     let cancelled = false
@@ -61,6 +65,13 @@ export default function System() {
     if (camera.rules.fall?.enabled) names.push('Fall')
     return names.length > 0 ? names.join(' · ') : '—'
   }
+
+  // Pagination
+  const cameraTotalPages = Math.max(1, Math.ceil(cameras.length / cameraPageSize))
+  const pagedCameras = useMemo(
+    () => cameras.slice((cameraPage - 1) * cameraPageSize, cameraPage * cameraPageSize),
+    [cameras, cameraPage],
+  )
 
   const handleMqttSave = async () => {
     setMqttSaving(true)
@@ -192,7 +203,7 @@ export default function System() {
               </tr>
             </thead>
             <tbody>
-              {cameras.map((camera) => {
+              {pagedCameras.map((camera) => {
                 const isOnline = camera.online !== false
                 return (
                   <tr
@@ -226,6 +237,40 @@ export default function System() {
               })}
             </tbody>
           </table>
+
+          {/* Pagination */}
+          {cameraTotalPages > 1 && (
+            <div className="flex items-center justify-center gap-1.5 py-3">
+              <button
+                onClick={() => setCameraPage((p) => Math.max(1, p - 1))}
+                disabled={cameraPage === 1}
+                className="px-2 py-1 rounded text-[11px] text-t3 hover:text-t1 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed transition-colors duration-150"
+              >
+                ◀ Prev
+              </button>
+              {Array.from({ length: cameraTotalPages }, (_, i) => i + 1).map((page) => (
+                <button
+                  key={page}
+                  onClick={() => setCameraPage(page)}
+                  className={`w-6 h-6 rounded text-[11px] font-medium cursor-pointer transition-colors duration-150 ${
+                    cameraPage === page
+                      ? 'bg-green text-bg'
+                      : 'text-t3 hover:text-t1 hover:bg-card'
+                  }`}
+                >
+                  {page}
+                </button>
+              ))}
+              <button
+                onClick={() => setCameraPage((p) => Math.min(cameraTotalPages, p + 1))}
+                disabled={cameraPage === cameraTotalPages}
+                className="px-2 py-1 rounded text-[11px] text-t3 hover:text-t1 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed transition-colors duration-150"
+              >
+                Next ▶
+              </button>
+              <span className="text-[10px] text-t3 ml-2">{cameras.length} cameras</span>
+            </div>
+          )}
         </div>
       )}
 
