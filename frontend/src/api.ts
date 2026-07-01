@@ -9,6 +9,7 @@ import type {
   MQTTConfig,
   MQTTStatus,
   Go2RTCConfig,
+  RulesConfig,
 } from './types';
 import { getToken, clearToken } from './auth';
 
@@ -162,8 +163,9 @@ export function getAnalysisTask(id: string): Promise<AnalysisTask> {
   return get<AnalysisTask>(`/api/video-analysis/tasks/${id}`);
 }
 
-export function startAnalysis(id: string): Promise<void> {
-  return post<void>(`/api/video-analysis/tasks/${id}/start`);
+export function startAnalysis(id: string, rules?: RulesConfig): Promise<void> {
+  const body = rules ? { rules } : undefined;
+  return post<void>(`/api/video-analysis/tasks/${id}/start`, body);
 }
 
 export function deleteAnalysisTask(id: string): Promise<void> {

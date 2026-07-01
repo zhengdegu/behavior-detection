@@ -309,6 +309,34 @@ export default function RuleForm({ rules, onChange }: RuleFormProps) {
             onChange={(v) => update('fight', { min_persons: v })}
           />
           <Field
+            label="confirm_frames"
+            value={rules.fight.confirm_frames}
+            onChange={(v) => update('fight', { confirm_frames: v })}
+          />
+          <Field
+            label="co_move_cos_threshold"
+            value={rules.fight.co_move_cos_threshold ?? 0.7}
+            step={0.01}
+            onChange={(v) => update('fight', { co_move_cos_threshold: v })}
+          />
+          <Field
+            label="min_relative_speed"
+            value={rules.fight.min_relative_speed ?? 40}
+            unit="px/s"
+            onChange={(v) => update('fight', { min_relative_speed: v })}
+          />
+          <Field
+            label="min_distance_variance"
+            value={rules.fight.min_distance_variance ?? 10}
+            unit="px²"
+            onChange={(v) => update('fight', { min_distance_variance: v })}
+          />
+          <Field
+            label="joint_overlap_threshold"
+            value={rules.fight.joint_overlap_threshold ?? 1}
+            onChange={(v) => update('fight', { joint_overlap_threshold: v })}
+          />
+          <Field
             label="cooldown"
             value={rules.fight.cooldown}
             unit="s"
@@ -348,6 +376,41 @@ export default function RuleForm({ rules, onChange }: RuleFormProps) {
             value={rules.fall.min_y_drop}
             unit="px"
             onChange={(v) => update('fall', { min_y_drop: v })}
+          />
+          <Field
+            label="min_hip_velocity"
+            value={rules.fall.min_hip_velocity ?? 30}
+            unit="px/f"
+            step={1}
+            onChange={(v) => update('fall', { min_hip_velocity: v })}
+          />
+          <Field
+            label="spine_angle_threshold"
+            value={rules.fall.spine_angle_threshold ?? 45}
+            unit="°"
+            step={1}
+            onChange={(v) => update('fall', { spine_angle_threshold: v })}
+          />
+          <Field
+            label="inactivity_frames"
+            value={rules.fall.inactivity_frames ?? 3}
+            onChange={(v) => update('fall', { inactivity_frames: v })}
+          />
+          <Field
+            label="inactivity_threshold"
+            value={rules.fall.inactivity_threshold ?? 15}
+            unit="px"
+            onChange={(v) => update('fall', { inactivity_threshold: v })}
+          />
+          <Field
+            label="history_size"
+            value={rules.fall.history_size ?? 10}
+            onChange={(v) => update('fall', { history_size: v })}
+          />
+          <Field
+            label="confirm_frames"
+            value={rules.fall.confirm_frames}
+            onChange={(v) => update('fall', { confirm_frames: v })}
           />
           <Field
             label="cooldown"
@@ -401,6 +464,16 @@ export default function RuleForm({ rules, onChange }: RuleFormProps) {
             value={rules.loiter.trajectory_window}
             unit="s"
             onChange={(v) => update('loiter', { trajectory_window: v })}
+          />
+          <Field
+            label="inertia"
+            value={rules.loiter.inertia}
+            onChange={(v) => update('loiter', { inertia: v })}
+          />
+          <Field
+            label="confirm_frames"
+            value={rules.loiter.confirm_frames}
+            onChange={(v) => update('loiter', { confirm_frames: v })}
           />
           <Field
             label="cooldown"

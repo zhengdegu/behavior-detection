@@ -23,6 +23,10 @@ const DEFAULT_RULES: RulesConfig = {
     min_persons: 2,
     confirm_frames: 3,
     cooldown: 30,
+    co_move_cos_threshold: 0.7,
+    min_relative_speed: 40,
+    min_distance_variance: 10,
+    joint_overlap_threshold: 1,
   },
   fall: {
     enabled: true,
@@ -31,6 +35,11 @@ const DEFAULT_RULES: RulesConfig = {
     min_y_drop: 20,
     confirm_frames: 2,
     cooldown: 30,
+    min_hip_velocity: 30,
+    spine_angle_threshold: 45,
+    inactivity_frames: 3,
+    inactivity_threshold: 15,
+    history_size: 10,
   },
   loiter: {
     enabled: false,

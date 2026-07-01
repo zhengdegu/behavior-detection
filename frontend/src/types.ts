@@ -36,6 +36,10 @@ export interface FightConfig {
   min_persons: number;
   confirm_frames: number;
   cooldown: number;
+  co_move_cos_threshold?: number;
+  min_relative_speed?: number;
+  min_distance_variance?: number;
+  joint_overlap_threshold?: number;
   schedule?: ScheduleConfig;
 }
 
@@ -46,6 +50,11 @@ export interface FallConfig {
   min_y_drop: number;
   confirm_frames: number;
   cooldown: number;
+  min_hip_velocity?: number;
+  spine_angle_threshold?: number;
+  inactivity_frames?: number;
+  inactivity_threshold?: number;
+  history_size?: number;
   schedule?: ScheduleConfig;
 }
 

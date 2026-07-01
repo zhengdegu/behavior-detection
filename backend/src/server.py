@@ -932,9 +932,13 @@ async def get_analysis_task(task_id: str):
     return _serialize_task(task)
 
 
+class StartAnalysisRequest(BaseModel):
+    rules: Optional[Dict[str, Any]] = None
+
+
 @app.post("/api/video-analysis/tasks/{task_id}/start")
-async def start_analysis_task(task_id: str):
-    """Start analysis task"""
+async def start_analysis_task(task_id: str, body: Optional[StartAnalysisRequest] = None):
+    """Start analysis task, optionally with custom rules config"""
     task = _task_repo.get_by_id(task_id) if _task_repo else None
     if not task:
         return JSONResponse({"error": f"Task '{task_id}' not found"}, status_code=404)
@@ -944,6 +948,10 @@ async def start_analysis_task(task_id: str):
             {"error": f"Task is in '{task['status']}' state, cannot start"},
             status_code=400,
         )
+
+    # Save rules config to task if provided
+    if body and body.rules and _task_repo:
+        _task_repo.update_config(task_id, rules=body.rules)
 
     # Start background analysis thread
     thread = threading.Thread(target=_run_video_analysis, args=(task_id,), daemon=True)

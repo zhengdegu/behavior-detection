@@ -593,6 +593,27 @@ class TaskRepository:
         )
         conn.commit()
 
+    def update_config(self, task_id: str, rules: Optional[dict] = None,
+                      roi: Optional[list] = None) -> None:
+        """Update task analysis config (rules and/or ROI)"""
+        conn = self.db.get_connection()
+        updates = []
+        params: list = []
+        if rules is not None:
+            updates.append("rules = ?")
+            params.append(json.dumps(rules))
+        if roi is not None:
+            updates.append("roi = ?")
+            params.append(json.dumps(roi))
+        if not updates:
+            return
+        params.append(task_id)
+        conn.execute(
+            f"UPDATE analysis_tasks SET {', '.join(updates)} WHERE id = ?",
+            params,
+        )
+        conn.commit()
+
     def update_result(
         self,
         task_id: str,

@@ -10,7 +10,7 @@ import {
   Activity,
   Trash2,
 } from 'lucide-react'
-import type { AnalysisTask, DetectionEvent } from '../types'
+import type { AnalysisTask, DetectionEvent, RulesConfig } from '../types'
 import {
   uploadVideo,
   getAnalysisTasks,
@@ -20,6 +20,7 @@ import {
   getTaskVideoUrl,
 } from '../api'
 import { formatFileSize } from '../utils'
+import RuleForm from '../components/RuleForm'
 
 // ── Status label helpers ──
 
@@ -86,6 +87,42 @@ export default function Analyze() {
   const [uploading, setUploading] = useState(false)
   const [starting, setStarting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [analysisRules, setAnalysisRules] = useState<RulesConfig>({
+    crowd: {
+      enabled: true,
+      max_count: 3,
+      radius: 300,
+      confirm_frames: 3,
+      cooldown: 10,
+    },
+    fight: {
+      enabled: true,
+      proximity_radius: 300,
+      min_speed: 15,
+      min_persons: 2,
+      confirm_frames: 1,
+      cooldown: 5,
+    },
+    fall: {
+      enabled: true,
+      ratio_threshold: 0.6,
+      min_ratio_change: 0.15,
+      min_y_drop: 5,
+      confirm_frames: 1,
+      cooldown: 5,
+    },
+    loiter: {
+      enabled: false,
+      min_duration: 60,
+      max_distance: 150,
+      max_displacement_ratio: 0.3,
+      min_total_path: 50,
+      trajectory_window: 60,
+      inertia: 3,
+      confirm_frames: 5,
+      cooldown: 120,
+    },
+  })
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -159,7 +196,7 @@ export default function Analyze() {
     setStarting(true)
     setError(null)
     try {
-      await startAnalysis(selectedId)
+      await startAnalysis(selectedId, analysisRules)
       await fetchTasks()
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to start analysis')
@@ -325,7 +362,7 @@ export default function Analyze() {
             </label>
           </div>
         ) : selected.status === 'waiting_config' ? (
-          /* Waiting Config: show first frame + start button */
+          /* Waiting Config: show first frame + rules config + start button */
           <div>
             <div className="detail-header flex justify-between items-start mb-3.5">
               <div>
@@ -346,6 +383,12 @@ export default function Analyze() {
                 alt="Video first frame"
                 className="w-full h-full object-contain"
               />
+            </div>
+
+            {/* Detection Rules Configuration */}
+            <div className="mb-3.5 p-3 rounded-lg bg-bg2 border border-border">
+              <h4 className="text-xs font-semibold text-t2 mb-2.5">Detection Rules</h4>
+              <RuleForm rules={analysisRules} onChange={setAnalysisRules} />
             </div>
 
             <button
