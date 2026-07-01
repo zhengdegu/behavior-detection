@@ -831,7 +831,7 @@ def _run_video_analysis(task_id: str):
                 if det.track_id < 0:
                     continue
                 x1, y1, x2, y2 = [int(v) for v in det.bbox]
-                cv2.rectangle(annotated, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                cv2.rectangle(annotated, (x1, y1), (x2, y2), (0, 255, 0), 1)
                 label = f"{det.class_name} #{det.track_id}"
                 cv2.putText(annotated, label, (x1, y1 - 8),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
@@ -843,9 +843,9 @@ def _run_video_analysis(task_id: str):
                     ex1, ey1, ex2, ey2 = [int(v) for v in bbox]
                     color = {"crowd": (0, 0, 255), "fight": (0, 0, 255),
                              "fall": (0, 165, 255)}.get(sub, (0, 0, 255))
-                    cv2.rectangle(annotated, (ex1, ey1), (ex2, ey2), color, 3)
+                    cv2.rectangle(annotated, (ex1, ey1), (ex2, ey2), color, 1)
                     cv2.putText(annotated, sub.upper(), (ex1, max(ey1 - 10, 16)),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 1)
 
             writer.write(annotated)
             frame_idx += 1

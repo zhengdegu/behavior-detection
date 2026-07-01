@@ -473,7 +473,7 @@ class CameraAnalyzer:
                 evt_tids = event.get("track_ids", [])
                 if det.track_id == event.get("track_id") or det.track_id in evt_tids:
                     color = (0, 0, 255)
-                cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
+                cv2.rectangle(img, (x1, y1), (x2, y2), color, 1)
                 label = f"{det.class_name} #{det.track_id}"
                 cv2.putText(img, label, (x1, max(y1 - 6, 12)),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.45, color, 1)
@@ -484,9 +484,9 @@ class CameraAnalyzer:
                 sub = event.get("sub_type", "event")
                 evt_color = {"crowd": (0, 0, 255), "fight": (0, 0, 255),
                              "fall": (0, 165, 255), "loiter": (0, 200, 200)}.get(sub, (0, 0, 255))
-                cv2.rectangle(img, (ex1, ey1), (ex2, ey2), evt_color, 3)
+                cv2.rectangle(img, (ex1, ey1), (ex2, ey2), evt_color, 1)
                 cv2.putText(img, sub.upper(), (ex1, max(ey1 - 10, 16)),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, evt_color, 2)
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, evt_color, 1)
 
             ts = time.strftime("%Y%m%d_%H%M%S")
             ms = int((time.time() % 1) * 1000)
@@ -507,7 +507,7 @@ class CameraAnalyzer:
             if det.track_id < 0:
                 continue
             x1, y1, x2, y2 = [int(v) for v in det.bbox]
-            cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 1)
             label = f"{det.class_name} #{det.track_id}"
             cv2.putText(img, label, (x1, y1 - 8),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
@@ -519,7 +519,7 @@ class CameraAnalyzer:
                 x1, y1, x2, y2 = [int(v) for v in bbox]
                 color = {"crowd": (0, 0, 255), "fight": (0, 0, 255),
                          "fall": (0, 165, 255), "loiter": (0, 200, 200)}.get(sub, (0, 0, 255))
-                cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
+                cv2.rectangle(img, (x1, y1), (x2, y2), color, 1)
                 cv2.putText(img, sub.upper(), (x1, y1 - 12),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 1)
         return img
