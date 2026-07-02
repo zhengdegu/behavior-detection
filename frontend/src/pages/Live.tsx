@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, Camera, Settings, Activity } from 'lucide-react'
+import { AlertTriangle, Camera, Settings, Activity, ChevronLeft, ChevronRight, Search } from 'lucide-react'
 import type { Camera as CameraType, DetectionEvent } from '../types'
 import { getCameras } from '../api'
 import { useWebSocket } from '../hooks/useWebSocket'
@@ -12,6 +12,9 @@ export default function Live() {
   // ── Camera state ──
   const [cameras, setCameras] = useState<CameraType[]>([])
   const [loading, setLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [searchQuery, setSearchQuery] = useState('')
+  const pageSize = 9
 
   // ── Alert state: camera IDs with active alerts ──
   const [alertCameraIds, setAlertCameraIds] = useState<Set<string>>(new Set())
@@ -82,6 +85,26 @@ export default function Live() {
   const todayEvents = events.length
   const lastAlertTime = events.length > 0 ? formatTimestamp(events[0].timestamp) : '—'
 
+  // ── Pagination ──
+  const filteredCameras = useMemo(() => {
+    if (!searchQuery.trim()) return cameras
+    const q = searchQuery.toLowerCase()
+    return cameras.filter(
+      (c) => c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q),
+    )
+  }, [cameras, searchQuery])
+
+  const totalPages = Math.max(1, Math.ceil(filteredCameras.length / pageSize))
+  const pagedCameras = useMemo(
+    () => filteredCameras.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [filteredCameras, currentPage],
+  )
+
+  // Reset page when search changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery])
+
   // ── Loading state ──
   if (loading) {
     return (
@@ -120,9 +143,57 @@ export default function Live() {
 
       {/* Main two-column layout */}
       <div className="grid gap-3 grid-cols-1 lg:grid-cols-[1fr_300px]">
-        {/* Left column: Camera grid + stats bar */}
+        {/* Left column: Camera grid + pagination + stats bar */}
         <div>
-          <CameraGrid cameras={cameras} alertCameraIds={alertCameraIds} />
+          {/* Search bar */}
+          <div className="mb-2 relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-t3" />
+            <input
+              type="text"
+              placeholder="Search by name or ID..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 rounded-lg bg-bg2 text-t1 border border-border text-xs outline-none focus:border-green transition-colors duration-150"
+            />
+          </div>
+
+          <CameraGrid cameras={pagedCameras} alertCameraIds={alertCameraIds} />
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="mt-2 flex items-center justify-center gap-2 py-2">
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="p-1.5 rounded-md text-t3 hover:text-t1 hover:bg-card cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed transition-colors duration-150"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                <button
+                  key={page}
+                  onClick={() => setCurrentPage(page)}
+                  className={`w-7 h-7 rounded-md text-xs font-medium cursor-pointer transition-colors duration-150 ${
+                    currentPage === page
+                      ? 'bg-green text-bg'
+                      : 'text-t3 hover:text-t1 hover:bg-card'
+                  }`}
+                >
+                  {page}
+                </button>
+              ))}
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="p-1.5 rounded-md text-t3 hover:text-t1 hover:bg-card cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed transition-colors duration-150"
+              >
+                <ChevronRight size={16} />
+              </button>
+              <span className="text-[10px] text-t3 ml-2">
+                {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, filteredCameras.length)} / {filteredCameras.length}
+              </span>
+            </div>
+          )}
 
           {/* Stats bar */}
           <div className="mt-3 px-4 py-2.5 bg-bg2 rounded-lg border border-border flex flex-wrap gap-6 text-[11px] text-t3">
