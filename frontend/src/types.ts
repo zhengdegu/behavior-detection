@@ -26,6 +26,7 @@ export interface CrowdConfig {
   radius: number;
   confirm_frames: number;
   cooldown: number;
+  roi?: [number, number][];
   schedule?: ScheduleConfig;
 }
 
@@ -40,6 +41,7 @@ export interface FightConfig {
   min_relative_speed?: number;
   min_distance_variance?: number;
   joint_overlap_threshold?: number;
+  roi?: [number, number][];
   schedule?: ScheduleConfig;
 }
 
@@ -55,6 +57,7 @@ export interface FallConfig {
   inactivity_frames?: number;
   inactivity_threshold?: number;
   history_size?: number;
+  roi?: [number, number][];
   schedule?: ScheduleConfig;
 }
 
@@ -68,6 +71,7 @@ export interface LoiterConfig {
   inertia: number;
   confirm_frames: number;
   cooldown: number;
+  roi?: [number, number][];
   schedule?: ScheduleConfig;
 }
 

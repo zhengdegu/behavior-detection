@@ -26,16 +26,20 @@ class BehaviorEngine:
 
         crowd_cfg = config.get("crowd") or {}
         if crowd_cfg.get("enabled", False):
-            self.rules.append(CrowdRule(
+            rule = CrowdRule(
                 max_count=crowd_cfg.get("max_count", 5),
                 radius=crowd_cfg.get("radius", 200),
                 confirm_frames=crowd_cfg.get("confirm_frames", 5),
                 cooldown=crowd_cfg.get("cooldown", 60),
-            ))
+            )
+            rule_roi = crowd_cfg.get("roi", [])
+            if rule_roi:
+                rule.roi = [(float(p[0]), float(p[1])) for p in rule_roi]
+            self.rules.append(rule)
 
         fight_cfg = config.get("fight") or {}
         if fight_cfg.get("enabled", False):
-            self.rules.append(FightRule(
+            rule = FightRule(
                 proximity_radius=fight_cfg.get("proximity_radius", 150),
                 min_speed=fight_cfg.get("min_speed", 80),
                 min_persons=fight_cfg.get("min_persons", 2),
@@ -45,11 +49,15 @@ class BehaviorEngine:
                 min_relative_speed=fight_cfg.get("min_relative_speed", 40.0),
                 min_distance_variance=fight_cfg.get("min_distance_variance", 10.0),
                 joint_overlap_threshold=fight_cfg.get("joint_overlap_threshold", 1),
-            ))
+            )
+            rule_roi = fight_cfg.get("roi", [])
+            if rule_roi:
+                rule.roi = [(float(p[0]), float(p[1])) for p in rule_roi]
+            self.rules.append(rule)
 
         fall_cfg = config.get("fall") or {}
         if fall_cfg.get("enabled", False):
-            self.rules.append(FallRule(
+            rule = FallRule(
                 ratio_threshold=fall_cfg.get("ratio_threshold", 1.0),
                 min_ratio_change=fall_cfg.get("min_ratio_change", 0.5),
                 min_y_drop=fall_cfg.get("min_y_drop", 20),
@@ -60,11 +68,15 @@ class BehaviorEngine:
                 inactivity_frames=fall_cfg.get("inactivity_frames", 3),
                 inactivity_threshold=fall_cfg.get("inactivity_threshold", 15.0),
                 history_size=fall_cfg.get("history_size", 10),
-            ))
+            )
+            rule_roi = fall_cfg.get("roi", [])
+            if rule_roi:
+                rule.roi = [(float(p[0]), float(p[1])) for p in rule_roi]
+            self.rules.append(rule)
 
         loiter_cfg = config.get("loiter") or {}
         if loiter_cfg.get("enabled", False):
-            self.rules.append(LoiterRule(
+            rule = LoiterRule(
                 min_duration=loiter_cfg.get("min_duration", 60.0),
                 max_distance=loiter_cfg.get("max_distance", 150.0),
                 max_displacement_ratio=loiter_cfg.get("max_displacement_ratio", 0.3),
@@ -73,7 +85,11 @@ class BehaviorEngine:
                 inertia=loiter_cfg.get("inertia", 3),
                 confirm_frames=loiter_cfg.get("confirm_frames", 5),
                 cooldown=loiter_cfg.get("cooldown", 120.0),
-            ))
+            )
+            rule_roi = loiter_cfg.get("roi", [])
+            if rule_roi:
+                rule.roi = [(float(p[0]), float(p[1])) for p in rule_roi]
+            self.rules.append(rule)
 
     def update(self, detections: List[Detection],
                camera_id: str = "",
@@ -84,16 +100,22 @@ class BehaviorEngine:
         Args:
             skip_rules: set of rule_name strings to skip (schedule-based)
         """
-        if self.roi:
-            detections = [d for d in detections
-                          if d.track_id < 0 or point_in_polygon(d.foot, self.roi)]
         all_events = []
         for rule in self.rules:
             if skip_rules and rule.rule_name in skip_rules:
                 rule.reset_confirm()
                 continue
+
+            # Per-rule ROI filtering: rule.roi > global self.roi > no filter
+            effective_roi = rule.roi if rule.roi else self.roi
+            if effective_roi:
+                filtered = [d for d in detections
+                            if d.track_id < 0 or point_in_polygon(d.foot, effective_roi)]
+            else:
+                filtered = detections
+
             try:
-                events = rule.update(detections, camera_id, frame_ts=frame_ts)
+                events = rule.update(filtered, camera_id, frame_ts=frame_ts)
                 all_events.extend(events)
             except Exception as e:
                 logger.error(f"Rule {rule.rule_name} error: {e}")

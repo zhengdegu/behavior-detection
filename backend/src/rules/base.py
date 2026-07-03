@@ -15,6 +15,7 @@ class BaseAnomalyRule:
         self.rule_name = rule_name
         self.confirm_frames = confirm_frames
         self.cooldown = cooldown
+        self.roi = None  # Rule-level ROI (list of (x,y) tuples); None = use global ROI
         self._confirm_count: Dict[str, int] = {}
         self._last_trigger: Dict[str, float] = {}
 

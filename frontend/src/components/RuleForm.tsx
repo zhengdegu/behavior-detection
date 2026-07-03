@@ -1,9 +1,12 @@
+import { useState, useEffect } from 'react'
 import type { RulesConfig, ScheduleConfig, TimePeriod } from '../types'
-import { Users, Zap, TrendingDown, Clock, Plus, Trash2, Footprints } from 'lucide-react'
+import { Users, Zap, TrendingDown, Clock, Plus, Trash2, Footprints, MapPin } from 'lucide-react'
+import RoiEditor from './RoiEditor'
 
 interface RuleFormProps {
   rules: RulesConfig
   onChange: (rules: RulesConfig) => void
+  cameraId: string
 }
 
 // ── Toggle switch ──
@@ -71,22 +74,32 @@ function SectionHeader({
   colorClass,
   enabled,
   onToggle,
+  collapsed,
+  onToggleCollapse,
 }: {
   icon: React.ComponentType<{ size?: number }>
   label: string
   colorClass: string
   enabled: boolean
   onToggle: (v: boolean) => void
+  collapsed: boolean
+  onToggleCollapse: () => void
 }) {
   return (
-    <div className="flex items-center justify-between mb-2.5">
-      <div className="flex items-center gap-1.5 text-xs font-semibold">
+    <div className="flex items-center justify-between">
+      <div
+        className="flex items-center gap-1.5 text-xs font-semibold cursor-pointer select-none flex-1"
+        onClick={onToggleCollapse}
+      >
         <span
           className={`w-[18px] h-[18px] rounded flex items-center justify-center ${colorClass}`}
         >
           <Icon size={10} />
         </span>
         {label}
+        <span className={`text-[10px] text-t3 transition-transform duration-150 ${collapsed ? '' : 'rotate-90'}`}>
+          ▶
+        </span>
       </div>
       <Toggle checked={enabled} onChange={onToggle} />
     </div>
@@ -224,11 +237,70 @@ function ScheduleEditor({
   )
 }
 
+// ── Rule-level ROI Section ──
+
+function RuleRoiSection({
+  cameraId,
+  roi,
+  onChange,
+}: {
+  cameraId: string
+  roi: [number, number][]
+  onChange: (roi: [number, number][]) => void
+}) {
+  const [useCustom, setUseCustom] = useState(roi.length > 0)
+
+  // Sync toggle state when camera changes (roi prop resets)
+  useEffect(() => {
+    setUseCustom(roi.length > 0)
+  }, [cameraId])
+
+  return (
+    <div className="mt-2 pt-2 border-t border-border/50">
+      <div className="flex items-center justify-between mb-1.5">
+        <div className="flex items-center gap-1 text-[10px] text-t3 font-medium">
+          <MapPin size={10} />
+          Custom ROI
+        </div>
+        <Toggle
+          checked={useCustom}
+          onChange={(v) => {
+            setUseCustom(v)
+            if (!v) onChange([])
+          }}
+        />
+      </div>
+      {useCustom && (
+        <RoiEditor
+          cameraId={cameraId}
+          initialVertices={roi}
+          onVerticesChange={onChange}
+        />
+      )}
+      {!useCustom && (
+        <p className="text-[9px] text-t3 italic">Using camera global ROI</p>
+      )}
+    </div>
+  )
+}
+
 // ── Default schedule ──
 
 const DEFAULT_SCHEDULE: ScheduleConfig = { enabled: false, periods: [] }
 
-export default function RuleForm({ rules, onChange }: RuleFormProps) {
+export default function RuleForm({ rules, onChange, cameraId }: RuleFormProps) {
+  // Collapse state for each section (default: all collapsed)
+  const [collapsed, setCollapsed] = useState({
+    crowd: true,
+    fight: true,
+    fall: true,
+    loiter: true,
+  })
+
+  const toggle = (section: keyof typeof collapsed) => {
+    setCollapsed((prev) => ({ ...prev, [section]: !prev[section] }))
+  }
+
   // Helper to update a nested rule section
   function update<K extends keyof RulesConfig>(
     section: K,
@@ -250,35 +322,46 @@ export default function RuleForm({ rules, onChange }: RuleFormProps) {
           colorClass="bg-red/12 text-red"
           enabled={rules.crowd.enabled}
           onToggle={(v) => update('crowd', { enabled: v })}
+          collapsed={collapsed.crowd}
+          onToggleCollapse={() => toggle('crowd')}
         />
-        <div className="grid grid-cols-2 gap-1.5">
-          <Field
-            label="max_count"
-            value={rules.crowd.max_count}
-            onChange={(v) => update('crowd', { max_count: v })}
-          />
-          <Field
-            label="radius"
-            value={rules.crowd.radius}
-            unit="px"
-            onChange={(v) => update('crowd', { radius: v })}
-          />
-          <Field
-            label="confirm_frames"
-            value={rules.crowd.confirm_frames}
-            onChange={(v) => update('crowd', { confirm_frames: v })}
-          />
-          <Field
-            label="cooldown"
-            value={rules.crowd.cooldown}
-            unit="s"
-            onChange={(v) => update('crowd', { cooldown: v })}
-          />
-        </div>
-        <ScheduleEditor
-          schedule={rules.crowd.schedule ?? DEFAULT_SCHEDULE}
-          onChange={(s) => update('crowd', { schedule: s })}
-        />
+        {!collapsed.crowd && (
+          <div className="mt-2.5">
+            <div className="grid grid-cols-2 gap-1.5">
+              <Field
+                label="max_count"
+                value={rules.crowd.max_count}
+                onChange={(v) => update('crowd', { max_count: v })}
+              />
+              <Field
+                label="radius"
+                value={rules.crowd.radius}
+                unit="px"
+                onChange={(v) => update('crowd', { radius: v })}
+              />
+              <Field
+                label="confirm_frames"
+                value={rules.crowd.confirm_frames}
+                onChange={(v) => update('crowd', { confirm_frames: v })}
+              />
+              <Field
+                label="cooldown"
+                value={rules.crowd.cooldown}
+                unit="s"
+                onChange={(v) => update('crowd', { cooldown: v })}
+              />
+            </div>
+            <ScheduleEditor
+              schedule={rules.crowd.schedule ?? DEFAULT_SCHEDULE}
+              onChange={(s) => update('crowd', { schedule: s })}
+            />
+            <RuleRoiSection
+              cameraId={cameraId}
+              roi={rules.crowd.roi ?? []}
+              onChange={(roi) => update('crowd', { roi })}
+            />
+          </div>
+        )}
       </div>
 
       {/* ── Fight Detection ── */}
@@ -289,64 +372,75 @@ export default function RuleForm({ rules, onChange }: RuleFormProps) {
           colorClass="bg-red/12 text-red"
           enabled={rules.fight.enabled}
           onToggle={(v) => update('fight', { enabled: v })}
+          collapsed={collapsed.fight}
+          onToggleCollapse={() => toggle('fight')}
         />
-        <div className="grid grid-cols-2 gap-1.5">
-          <Field
-            label="proximity_radius"
-            value={rules.fight.proximity_radius}
-            unit="px"
-            onChange={(v) => update('fight', { proximity_radius: v })}
-          />
-          <Field
-            label="min_speed"
-            value={rules.fight.min_speed}
-            unit="px/s"
-            onChange={(v) => update('fight', { min_speed: v })}
-          />
-          <Field
-            label="min_persons"
-            value={rules.fight.min_persons}
-            onChange={(v) => update('fight', { min_persons: v })}
-          />
-          <Field
-            label="confirm_frames"
-            value={rules.fight.confirm_frames}
-            onChange={(v) => update('fight', { confirm_frames: v })}
-          />
-          <Field
-            label="co_move_cos_threshold"
-            value={rules.fight.co_move_cos_threshold ?? 0.7}
-            step={0.01}
-            onChange={(v) => update('fight', { co_move_cos_threshold: v })}
-          />
-          <Field
-            label="min_relative_speed"
-            value={rules.fight.min_relative_speed ?? 40}
-            unit="px/s"
-            onChange={(v) => update('fight', { min_relative_speed: v })}
-          />
-          <Field
-            label="min_distance_variance"
-            value={rules.fight.min_distance_variance ?? 10}
-            unit="px²"
-            onChange={(v) => update('fight', { min_distance_variance: v })}
-          />
-          <Field
-            label="joint_overlap_threshold"
-            value={rules.fight.joint_overlap_threshold ?? 1}
-            onChange={(v) => update('fight', { joint_overlap_threshold: v })}
-          />
-          <Field
-            label="cooldown"
-            value={rules.fight.cooldown}
-            unit="s"
-            onChange={(v) => update('fight', { cooldown: v })}
-          />
-        </div>
-        <ScheduleEditor
-          schedule={rules.fight.schedule ?? DEFAULT_SCHEDULE}
-          onChange={(s) => update('fight', { schedule: s })}
-        />
+        {!collapsed.fight && (
+          <div className="mt-2.5">
+            <div className="grid grid-cols-2 gap-1.5">
+              <Field
+                label="proximity_radius"
+                value={rules.fight.proximity_radius}
+                unit="px"
+                onChange={(v) => update('fight', { proximity_radius: v })}
+              />
+              <Field
+                label="min_speed"
+                value={rules.fight.min_speed}
+                unit="px/s"
+                onChange={(v) => update('fight', { min_speed: v })}
+              />
+              <Field
+                label="min_persons"
+                value={rules.fight.min_persons}
+                onChange={(v) => update('fight', { min_persons: v })}
+              />
+              <Field
+                label="confirm_frames"
+                value={rules.fight.confirm_frames}
+                onChange={(v) => update('fight', { confirm_frames: v })}
+              />
+              <Field
+                label="co_move_cos_threshold"
+                value={rules.fight.co_move_cos_threshold ?? 0.7}
+                step={0.01}
+                onChange={(v) => update('fight', { co_move_cos_threshold: v })}
+              />
+              <Field
+                label="min_relative_speed"
+                value={rules.fight.min_relative_speed ?? 40}
+                unit="px/s"
+                onChange={(v) => update('fight', { min_relative_speed: v })}
+              />
+              <Field
+                label="min_distance_variance"
+                value={rules.fight.min_distance_variance ?? 10}
+                unit="px²"
+                onChange={(v) => update('fight', { min_distance_variance: v })}
+              />
+              <Field
+                label="joint_overlap_threshold"
+                value={rules.fight.joint_overlap_threshold ?? 1}
+                onChange={(v) => update('fight', { joint_overlap_threshold: v })}
+              />
+              <Field
+                label="cooldown"
+                value={rules.fight.cooldown}
+                unit="s"
+                onChange={(v) => update('fight', { cooldown: v })}
+              />
+            </div>
+            <ScheduleEditor
+              schedule={rules.fight.schedule ?? DEFAULT_SCHEDULE}
+              onChange={(s) => update('fight', { schedule: s })}
+            />
+            <RuleRoiSection
+              cameraId={cameraId}
+              roi={rules.fight.roi ?? []}
+              onChange={(roi) => update('fight', { roi })}
+            />
+          </div>
+        )}
       </div>
 
       {/* ── Fall Detection ── */}
@@ -357,72 +451,83 @@ export default function RuleForm({ rules, onChange }: RuleFormProps) {
           colorClass="bg-orange/12 text-orange"
           enabled={rules.fall.enabled}
           onToggle={(v) => update('fall', { enabled: v })}
+          collapsed={collapsed.fall}
+          onToggleCollapse={() => toggle('fall')}
         />
-        <div className="grid grid-cols-2 gap-1.5">
-          <Field
-            label="ratio_threshold"
-            value={rules.fall.ratio_threshold}
-            step={0.01}
-            onChange={(v) => update('fall', { ratio_threshold: v })}
-          />
-          <Field
-            label="min_ratio_change"
-            value={rules.fall.min_ratio_change}
-            step={0.01}
-            onChange={(v) => update('fall', { min_ratio_change: v })}
-          />
-          <Field
-            label="min_y_drop"
-            value={rules.fall.min_y_drop}
-            unit="px"
-            onChange={(v) => update('fall', { min_y_drop: v })}
-          />
-          <Field
-            label="min_hip_velocity"
-            value={rules.fall.min_hip_velocity ?? 30}
-            unit="px/f"
-            step={1}
-            onChange={(v) => update('fall', { min_hip_velocity: v })}
-          />
-          <Field
-            label="spine_angle_threshold"
-            value={rules.fall.spine_angle_threshold ?? 45}
-            unit="°"
-            step={1}
-            onChange={(v) => update('fall', { spine_angle_threshold: v })}
-          />
-          <Field
-            label="inactivity_frames"
-            value={rules.fall.inactivity_frames ?? 3}
-            onChange={(v) => update('fall', { inactivity_frames: v })}
-          />
-          <Field
-            label="inactivity_threshold"
-            value={rules.fall.inactivity_threshold ?? 15}
-            unit="px"
-            onChange={(v) => update('fall', { inactivity_threshold: v })}
-          />
-          <Field
-            label="history_size"
-            value={rules.fall.history_size ?? 10}
-            onChange={(v) => update('fall', { history_size: v })}
-          />
-          <Field
-            label="confirm_frames"
-            value={rules.fall.confirm_frames}
-            onChange={(v) => update('fall', { confirm_frames: v })}
-          />
-          <Field
-            label="cooldown"
-            value={rules.fall.cooldown}
-            unit="s"
-            onChange={(v) => update('fall', { cooldown: v })}
-          />
-        </div>
-        <ScheduleEditor
-          schedule={rules.fall.schedule ?? DEFAULT_SCHEDULE}
-          onChange={(s) => update('fall', { schedule: s })}
-        />
+        {!collapsed.fall && (
+          <div className="mt-2.5">
+            <div className="grid grid-cols-2 gap-1.5">
+              <Field
+                label="ratio_threshold"
+                value={rules.fall.ratio_threshold}
+                step={0.01}
+                onChange={(v) => update('fall', { ratio_threshold: v })}
+              />
+              <Field
+                label="min_ratio_change"
+                value={rules.fall.min_ratio_change}
+                step={0.01}
+                onChange={(v) => update('fall', { min_ratio_change: v })}
+              />
+              <Field
+                label="min_y_drop"
+                value={rules.fall.min_y_drop}
+                unit="px"
+                onChange={(v) => update('fall', { min_y_drop: v })}
+              />
+              <Field
+                label="min_hip_velocity"
+                value={rules.fall.min_hip_velocity ?? 30}
+                unit="px/f"
+                step={1}
+                onChange={(v) => update('fall', { min_hip_velocity: v })}
+              />
+              <Field
+                label="spine_angle_threshold"
+                value={rules.fall.spine_angle_threshold ?? 45}
+                unit="°"
+                step={1}
+                onChange={(v) => update('fall', { spine_angle_threshold: v })}
+              />
+              <Field
+                label="inactivity_frames"
+                value={rules.fall.inactivity_frames ?? 3}
+                onChange={(v) => update('fall', { inactivity_frames: v })}
+              />
+              <Field
+                label="inactivity_threshold"
+                value={rules.fall.inactivity_threshold ?? 15}
+                unit="px"
+                onChange={(v) => update('fall', { inactivity_threshold: v })}
+              />
+              <Field
+                label="history_size"
+                value={rules.fall.history_size ?? 10}
+                onChange={(v) => update('fall', { history_size: v })}
+              />
+              <Field
+                label="confirm_frames"
+                value={rules.fall.confirm_frames}
+                onChange={(v) => update('fall', { confirm_frames: v })}
+              />
+              <Field
+                label="cooldown"
+                value={rules.fall.cooldown}
+                unit="s"
+                onChange={(v) => update('fall', { cooldown: v })}
+              />
+            </div>
+            <ScheduleEditor
+              schedule={rules.fall.schedule ?? DEFAULT_SCHEDULE}
+              onChange={(s) => update('fall', { schedule: s })}
+            />
+            <RuleRoiSection
+              cameraId={cameraId}
+              roi={rules.fall.roi ?? []}
+              onChange={(roi) => update('fall', { roi })}
+            />
+          </div>
+        )}
       </div>
 
       {/* ── Loiter Detection ── */}
@@ -433,59 +538,70 @@ export default function RuleForm({ rules, onChange }: RuleFormProps) {
           colorClass="bg-yellow/12 text-yellow"
           enabled={rules.loiter.enabled}
           onToggle={(v) => update('loiter', { enabled: v })}
+          collapsed={collapsed.loiter}
+          onToggleCollapse={() => toggle('loiter')}
         />
-        <div className="grid grid-cols-2 gap-1.5">
-          <Field
-            label="min_duration"
-            value={rules.loiter.min_duration}
-            unit="s"
-            onChange={(v) => update('loiter', { min_duration: v })}
-          />
-          <Field
-            label="max_distance"
-            value={rules.loiter.max_distance}
-            unit="px"
-            onChange={(v) => update('loiter', { max_distance: v })}
-          />
-          <Field
-            label="max_disp_ratio"
-            value={rules.loiter.max_displacement_ratio}
-            step={0.01}
-            onChange={(v) => update('loiter', { max_displacement_ratio: v })}
-          />
-          <Field
-            label="min_total_path"
-            value={rules.loiter.min_total_path}
-            unit="px"
-            onChange={(v) => update('loiter', { min_total_path: v })}
-          />
-          <Field
-            label="trajectory_window"
-            value={rules.loiter.trajectory_window}
-            unit="s"
-            onChange={(v) => update('loiter', { trajectory_window: v })}
-          />
-          <Field
-            label="inertia"
-            value={rules.loiter.inertia}
-            onChange={(v) => update('loiter', { inertia: v })}
-          />
-          <Field
-            label="confirm_frames"
-            value={rules.loiter.confirm_frames}
-            onChange={(v) => update('loiter', { confirm_frames: v })}
-          />
-          <Field
-            label="cooldown"
-            value={rules.loiter.cooldown}
-            unit="s"
-            onChange={(v) => update('loiter', { cooldown: v })}
-          />
-        </div>
-        <ScheduleEditor
-          schedule={rules.loiter.schedule ?? DEFAULT_SCHEDULE}
-          onChange={(s) => update('loiter', { schedule: s })}
-        />
+        {!collapsed.loiter && (
+          <div className="mt-2.5">
+            <div className="grid grid-cols-2 gap-1.5">
+              <Field
+                label="min_duration"
+                value={rules.loiter.min_duration}
+                unit="s"
+                onChange={(v) => update('loiter', { min_duration: v })}
+              />
+              <Field
+                label="max_distance"
+                value={rules.loiter.max_distance}
+                unit="px"
+                onChange={(v) => update('loiter', { max_distance: v })}
+              />
+              <Field
+                label="max_disp_ratio"
+                value={rules.loiter.max_displacement_ratio}
+                step={0.01}
+                onChange={(v) => update('loiter', { max_displacement_ratio: v })}
+              />
+              <Field
+                label="min_total_path"
+                value={rules.loiter.min_total_path}
+                unit="px"
+                onChange={(v) => update('loiter', { min_total_path: v })}
+              />
+              <Field
+                label="trajectory_window"
+                value={rules.loiter.trajectory_window}
+                unit="s"
+                onChange={(v) => update('loiter', { trajectory_window: v })}
+              />
+              <Field
+                label="inertia"
+                value={rules.loiter.inertia}
+                onChange={(v) => update('loiter', { inertia: v })}
+              />
+              <Field
+                label="confirm_frames"
+                value={rules.loiter.confirm_frames}
+                onChange={(v) => update('loiter', { confirm_frames: v })}
+              />
+              <Field
+                label="cooldown"
+                value={rules.loiter.cooldown}
+                unit="s"
+                onChange={(v) => update('loiter', { cooldown: v })}
+              />
+            </div>
+            <ScheduleEditor
+              schedule={rules.loiter.schedule ?? DEFAULT_SCHEDULE}
+              onChange={(s) => update('loiter', { schedule: s })}
+            />
+            <RuleRoiSection
+              cameraId={cameraId}
+              roi={rules.loiter.roi ?? []}
+              onChange={(roi) => update('loiter', { roi })}
+            />
+          </div>
+        )}
       </div>
     </div>
   )

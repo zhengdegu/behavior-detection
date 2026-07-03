@@ -498,7 +498,7 @@ export default function Config() {
             <h3 className="text-xs font-semibold text-t3 mb-3.5">
               Detection Rules
             </h3>
-            <RuleForm rules={editRules} onChange={setEditRules} />
+            <RuleForm rules={editRules} onChange={setEditRules} cameraId={selected.id} />
             {/* MQTT Publish Config */}
             <div className="mt-3.5 pt-3.5 border-t border-border">
               <h4 className="text-[10px] font-semibold text-t3 uppercase tracking-wide mb-2.5">
