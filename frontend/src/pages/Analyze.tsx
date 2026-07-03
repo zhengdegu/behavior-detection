@@ -87,6 +87,10 @@ export default function Analyze() {
   const [uploading, setUploading] = useState(false)
   const [starting, setStarting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [taskPage, setTaskPage] = useState(1)
+  const [eventPage, setEventPage] = useState(1)
+  const TASK_PAGE_SIZE = 20
+  const EVENT_PAGE_SIZE = 10
   const [analysisRules, setAnalysisRules] = useState<RulesConfig>({
     crowd: {
       enabled: true,
@@ -280,10 +284,12 @@ export default function Analyze() {
 
         {/* Task items */}
         <div className="flex-1 overflow-y-auto">
-          {tasks.map((task) => (
+          {tasks
+            .slice((taskPage - 1) * TASK_PAGE_SIZE, taskPage * TASK_PAGE_SIZE)
+            .map((task) => (
             <div
               key={task.id}
-              onClick={() => setSelectedId(task.id)}
+              onClick={() => { setSelectedId(task.id); setEventPage(1) }}
               className={`task-item px-3 py-2.5 border-b border-border/50 cursor-pointer transition-colors duration-150 ${
                 selectedId === task.id
                   ? 'active bg-green/8'
@@ -334,6 +340,30 @@ export default function Analyze() {
             </div>
           )}
         </div>
+
+        {/* Task pagination */}
+        {tasks.length > TASK_PAGE_SIZE && (
+          <div className="flex items-center justify-center gap-1 px-2.5 py-2 border-t border-border flex-shrink-0">
+            <button
+              onClick={() => setTaskPage((p) => Math.max(1, p - 1))}
+              disabled={taskPage === 1}
+              className="px-1.5 py-0.5 rounded text-[10px] text-t3 hover:text-t1 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed transition-colors duration-150"
+            >
+              ◀
+            </button>
+            <span className="text-[10px] text-t3 font-mono">
+              {taskPage}/{Math.ceil(tasks.length / TASK_PAGE_SIZE)}
+            </span>
+            <button
+              onClick={() => setTaskPage((p) => Math.min(Math.ceil(tasks.length / TASK_PAGE_SIZE), p + 1))}
+              disabled={taskPage >= Math.ceil(tasks.length / TASK_PAGE_SIZE)}
+              className="px-1.5 py-0.5 rounded text-[10px] text-t3 hover:text-t1 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed transition-colors duration-150"
+            >
+              ▶
+            </button>
+            <span className="text-[9px] text-t3 ml-1.5">{tasks.length} total</span>
+          </div>
+        )}
       </div>
 
       {/* ── Right: Task detail area ── */}
@@ -538,8 +568,10 @@ export default function Analyze() {
                     {selected.events.length} events
                   </span>
                 </div>
-                <div className="timeline-list max-h-60 overflow-y-auto">
-                  {selected.events.map((ev, idx) => (
+                <div className="timeline-list">
+                  {selected.events
+                    .slice((eventPage - 1) * EVENT_PAGE_SIZE, eventPage * EVENT_PAGE_SIZE)
+                    .map((ev, idx) => (
                     <div
                       key={`${ev.timestamp}-${idx}`}
                       onClick={() => seekToTime(String(ev.timestamp))}
@@ -564,6 +596,29 @@ export default function Analyze() {
                     </div>
                   ))}
                 </div>
+                {/* Event pagination */}
+                {selected.events.length > EVENT_PAGE_SIZE && (
+                  <div className="flex items-center justify-center gap-1 px-3.5 py-2 border-t border-border">
+                    <button
+                      onClick={() => setEventPage((p) => Math.max(1, p - 1))}
+                      disabled={eventPage === 1}
+                      className="px-1.5 py-0.5 rounded text-[10px] text-t3 hover:text-t1 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed transition-colors duration-150"
+                    >
+                      ◀
+                    </button>
+                    <span className="text-[10px] text-t3 font-mono">
+                      {eventPage}/{Math.ceil(selected.events.length / EVENT_PAGE_SIZE)}
+                    </span>
+                    <button
+                      onClick={() => setEventPage((p) => Math.min(Math.ceil(selected.events!.length / EVENT_PAGE_SIZE), p + 1))}
+                      disabled={eventPage >= Math.ceil(selected.events.length / EVENT_PAGE_SIZE)}
+                      className="px-1.5 py-0.5 rounded text-[10px] text-t3 hover:text-t1 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed transition-colors duration-150"
+                    >
+                      ▶
+                    </button>
+                    <span className="text-[9px] text-t3 ml-1.5">{selected.events.length} events</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
