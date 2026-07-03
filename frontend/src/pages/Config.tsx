@@ -543,6 +543,15 @@ export default function Config() {
                       />
                       <span className="text-[11px] text-t3">Fall events</span>
                     </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editMqttPublish.loiter}
+                        onChange={(e) => setEditMqttPublish({ ...editMqttPublish, loiter: e.target.checked })}
+                        className="accent-green"
+                      />
+                      <span className="text-[11px] text-t3">Loiter events</span>
+                    </label>
                   </div>
                 )}
               </div>
