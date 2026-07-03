@@ -6,7 +6,7 @@ import RoiEditor from './RoiEditor'
 interface RuleFormProps {
   rules: RulesConfig
   onChange: (rules: RulesConfig) => void
-  cameraId: string
+  cameraId?: string
 }
 
 // ── Toggle switch ──
@@ -244,7 +244,7 @@ function RuleRoiSection({
   roi,
   onChange,
 }: {
-  cameraId: string
+  cameraId?: string
   roi: [number, number][]
   onChange: (roi: [number, number][]) => void
 }) {
@@ -254,6 +254,9 @@ function RuleRoiSection({
   useEffect(() => {
     setUseCustom(roi.length > 0)
   }, [cameraId])
+
+  // Don't render ROI editor if no camera context (e.g. video analysis)
+  if (!cameraId) return null
 
   return (
     <div className="mt-2 pt-2 border-t border-border/50">
