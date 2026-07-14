@@ -6,7 +6,7 @@ import logging
 from typing import List, Dict, Any
 
 from ..detection import Detection
-from ..geometry import point_in_polygon, Polygon
+from ..geometry import point_in_polygon, point_in_any_polygon, Polygon, MultiPolygon
 from .base import BaseAnomalyRule
 from .crowd import CrowdRule
 from .fight import FightRule
@@ -19,9 +19,9 @@ logger = logging.getLogger(__name__)
 class BehaviorEngine:
     """Behavior detection engine, aggregates all rules"""
 
-    def __init__(self, config: dict, roi: Polygon = None):
+    def __init__(self, config: dict, roi: list = None):
         self.rules: List[BaseAnomalyRule] = []
-        self.roi = [(float(p[0]), float(p[1])) for p in roi] if roi else None
+        self.roi: MultiPolygon = self._parse_roi(roi)
         config = config or {}
 
         crowd_cfg = config.get("crowd") or {}
@@ -32,9 +32,7 @@ class BehaviorEngine:
                 confirm_frames=crowd_cfg.get("confirm_frames", 5),
                 cooldown=crowd_cfg.get("cooldown", 60),
             )
-            rule_roi = crowd_cfg.get("roi", [])
-            if rule_roi:
-                rule.roi = [(float(p[0]), float(p[1])) for p in rule_roi]
+            rule.multi_roi = self._parse_roi(crowd_cfg.get("roi", []))
             self.rules.append(rule)
 
         fight_cfg = config.get("fight") or {}
@@ -50,9 +48,7 @@ class BehaviorEngine:
                 min_distance_variance=fight_cfg.get("min_distance_variance", 10.0),
                 joint_overlap_threshold=fight_cfg.get("joint_overlap_threshold", 1),
             )
-            rule_roi = fight_cfg.get("roi", [])
-            if rule_roi:
-                rule.roi = [(float(p[0]), float(p[1])) for p in rule_roi]
+            rule.multi_roi = self._parse_roi(fight_cfg.get("roi", []))
             self.rules.append(rule)
 
         fall_cfg = config.get("fall") or {}
@@ -69,9 +65,7 @@ class BehaviorEngine:
                 inactivity_threshold=fall_cfg.get("inactivity_threshold", 15.0),
                 history_size=fall_cfg.get("history_size", 10),
             )
-            rule_roi = fall_cfg.get("roi", [])
-            if rule_roi:
-                rule.roi = [(float(p[0]), float(p[1])) for p in rule_roi]
+            rule.multi_roi = self._parse_roi(fall_cfg.get("roi", []))
             self.rules.append(rule)
 
         loiter_cfg = config.get("loiter") or {}
@@ -86,10 +80,41 @@ class BehaviorEngine:
                 confirm_frames=loiter_cfg.get("confirm_frames", 5),
                 cooldown=loiter_cfg.get("cooldown", 120.0),
             )
-            rule_roi = loiter_cfg.get("roi", [])
-            if rule_roi:
-                rule.roi = [(float(p[0]), float(p[1])) for p in rule_roi]
+            rule.multi_roi = self._parse_roi(loiter_cfg.get("roi", []))
             self.rules.append(rule)
+
+    @staticmethod
+    def _parse_roi(roi: list) -> MultiPolygon:
+        """Parse ROI data into a list of polygons.
+        
+        Supports two formats:
+        - Legacy single polygon: [[x1,y1], [x2,y2], ...] 
+        - Multi-polygon: [[[x1,y1],[x2,y2],...], [[x1,y1],[x2,y2],...]]
+        
+        Detection: if first element is a 2-element list of numbers → single polygon.
+        If first element is a list of lists → multi-polygon.
+        """
+        if not roi:
+            return []
+        # Check if this is a multi-polygon (list of polygons)
+        # A polygon point is [float, float]. A polygon is [[float,float], ...].
+        # Multi-polygon is [[[float,float],...], [[float,float],...]]
+        first = roi[0]
+        if not first:
+            return []
+        # If first element's first element is also a list → multi-polygon format
+        if isinstance(first[0], (list, tuple)):
+            # Multi-polygon: each item is a polygon (list of points)
+            result = []
+            for poly in roi:
+                if len(poly) >= 3:
+                    result.append([(float(p[0]), float(p[1])) for p in poly])
+            return result
+        else:
+            # Legacy single polygon: roi = [[x,y], [x,y], ...]
+            if len(roi) >= 3:
+                return [[(float(p[0]), float(p[1])) for p in roi]]
+            return []
 
     def update(self, detections: List[Detection],
                camera_id: str = "",
@@ -106,11 +131,11 @@ class BehaviorEngine:
                 rule.reset_confirm()
                 continue
 
-            # Per-rule ROI filtering: rule.roi > global self.roi > no filter
-            effective_roi = rule.roi if rule.roi else self.roi
+            # Per-rule ROI filtering: rule.multi_roi > global self.roi > no filter
+            effective_roi = rule.multi_roi if rule.multi_roi else self.roi
             if effective_roi:
                 filtered = [d for d in detections
-                            if d.track_id < 0 or point_in_polygon(d.foot, effective_roi)]
+                            if d.track_id < 0 or point_in_any_polygon(d.foot, effective_roi)]
             else:
                 filtered = detections
 

@@ -252,7 +252,7 @@ Events follow a lifecycle model. The same event sends `triggered` once, `updatin
     "bbox": [120, 80, 580, 420],
     "confidence": 0.85
   },
-  "image_url": "events/cam01_crowd_t1_20260429_143052_123.jpg",
+  "image_url": "/events/cam01_crowd_t1_20260429_143052_123.jpg",
   "duration": 0.0
 }
 ```

@@ -16,6 +16,7 @@ class BaseAnomalyRule:
         self.confirm_frames = confirm_frames
         self.cooldown = cooldown
         self.roi = None  # Rule-level ROI (list of (x,y) tuples); None = use global ROI
+        self.multi_roi = []  # Multi-polygon ROI (list of polygons); empty = use global ROI
         self._confirm_count: Dict[str, int] = {}
         self._last_trigger: Dict[str, float] = {}
 
