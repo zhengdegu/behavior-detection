@@ -43,9 +43,6 @@
         "radius": 200,
         "confirm_frames": 5,
         "cooldown": 60,
-        "roi": [
-          [[0.1, 0.2], [0.9, 0.2], [0.9, 0.9], [0.1, 0.9]]
-        ],
         "schedule": { "enabled": false, "periods": [] },
         "zones": [
           {
@@ -113,7 +110,7 @@
 ]
 ```
 
-> **说明:** 每个规则都有独立的 `roi`、`schedule` 和 `zones` 字段。规则级 `roi` 为空时使用摄像头全局 `roi`；规则级 `roi` 非空时覆盖全局 ROI。当 `zones` 非空时，引擎使用各 Zone 的独立 ROI 和参数进行检测，忽略规则顶层 `roi`。
+> **说明:** 当 `zones` 非空时，引擎使用各 Zone 的独立 ROI 和参数进行检测，忽略规则顶层 `roi`。`zones` 为空或不存在时使用规则顶层 `roi` + 参数（向后兼容）。
 
 ---
 
@@ -158,8 +155,6 @@
       "radius": 200,
       "confirm_frames": 5,
       "cooldown": 60,
-      "roi": [],
-      "schedule": { "enabled": false, "periods": [] },
       "zones": [
         {
           "roi": [[0.1, 0.1], [0.4, 0.1], [0.4, 0.5], [0.1, 0.5]],
@@ -364,10 +359,6 @@ Zone 可覆盖对应规则的所有数值参数，例如：
 {
   "crowd": {
     "enabled": true,
-    "max_count": 5,
-    "radius": 200,
-    "confirm_frames": 5,
-    "cooldown": 60,
     "zones": [
       {
         "roi": [[0.0, 0.0], [0.5, 0.0], [0.5, 1.0], [0.0, 1.0]],
@@ -392,7 +383,7 @@ Zone 可覆盖对应规则的所有数值参数，例如：
 }
 ```
 
-> Zone 中未设置的参数自动继承规则顶层默认值。上例中"通道"和"全画面兜底"的 `radius`、`confirm_frames`、`cooldown` 均继承顶层的 200、5、60。
+> Zone 中未设置的参数自动继承规则顶层默认值（如 `max_count`=5, `radius`=200 等）。上例中"通道"和"全画面兜底"仅覆盖了 `max_count`，其余参数均从顶层继承。
 
 ---
 
