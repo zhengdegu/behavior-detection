@@ -39,70 +39,54 @@
     "rules": {
       "crowd": {
         "enabled": true,
-        "max_count": 5,
-        "radius": 200,
-        "confirm_frames": 5,
-        "cooldown": 60,
         "schedule": { "enabled": false, "periods": [] },
         "zones": [
           {
             "roi": [[0.1, 0.2], [0.4, 0.2], [0.4, 0.6], [0.1, 0.6]],
             "name": "入口区域",
-            "max_count": 3
+            "max_count": 5,
+            "radius": 200,
+            "confirm_frames": 5,
+            "cooldown": 60
           },
           {
             "roi": [[0.5, 0.3], [0.9, 0.3], [0.9, 0.9], [0.5, 0.9]],
-            "name": "通道区域"
+            "name": "通道区域",
+            "max_count": 8,
+            "radius": 200,
+            "confirm_frames": 5,
+            "cooldown": 60
           }
         ]
       },
       "fight": {
         "enabled": true,
-        "proximity_radius": 150,
-        "min_speed": 80,
-        "min_persons": 2,
-        "confirm_frames": 6,
-        "cooldown": 30,
-        "co_move_cos_threshold": 0.7,
-        "min_relative_speed": 40.0,
-        "min_distance_variance": 10.0,
-        "joint_overlap_threshold": 1,
-        "roi": [
-          [[0.1, 0.2], [0.9, 0.2], [0.9, 0.9], [0.1, 0.9]]
-        ],
-        "schedule": { "enabled": false, "periods": [] }
+        "schedule": { "enabled": false, "periods": [] },
+        "zones": [
+          {
+            "roi": [[0.1, 0.2], [0.9, 0.2], [0.9, 0.9], [0.1, 0.9]],
+            "name": "主区域",
+            "proximity_radius": 150,
+            "min_speed": 80,
+            "min_persons": 2,
+            "confirm_frames": 6,
+            "cooldown": 30,
+            "co_move_cos_threshold": 0.7,
+            "min_relative_speed": 40.0,
+            "min_distance_variance": 10.0,
+            "joint_overlap_threshold": 1
+          }
+        ]
       },
       "fall": {
         "enabled": false,
-        "ratio_threshold": 1.0,
-        "min_ratio_change": 0.5,
-        "min_y_drop": 20,
-        "confirm_frames": 5,
-        "cooldown": 30,
-        "min_hip_velocity": 30.0,
-        "spine_angle_threshold": 45.0,
-        "inactivity_frames": 3,
-        "inactivity_threshold": 15.0,
-        "history_size": 10,
-        "roi": [
-          [[0.1, 0.2], [0.9, 0.2], [0.9, 0.9], [0.1, 0.9]]
-        ],
-        "schedule": { "enabled": false, "periods": [] }
+        "schedule": { "enabled": false, "periods": [] },
+        "zones": []
       },
       "loiter": {
         "enabled": false,
-        "min_duration": 60.0,
-        "max_distance": 150.0,
-        "max_displacement_ratio": 0.3,
-        "min_total_path": 50.0,
-        "trajectory_window": 60.0,
-        "inertia": 3,
-        "confirm_frames": 5,
-        "cooldown": 120.0,
-        "roi": [
-          [[0.1, 0.2], [0.9, 0.2], [0.9, 0.9], [0.1, 0.9]]
-        ],
-        "schedule": { "enabled": false, "periods": [] }
+        "schedule": { "enabled": false, "periods": [] },
+        "zones": []
       }
     },
     "mqtt_publish": { "enabled": true, "crowd": true, "fight": true, "fall": true, "loiter": false }
@@ -110,7 +94,7 @@
 ]
 ```
 
-> **说明:** 当 `zones` 非空时，引擎使用各 Zone 的独立 ROI 和参数进行检测，忽略规则顶层 `roi`。`zones` 为空或不存在时使用规则顶层 `roi` + 参数（向后兼容）。
+> **说明:** 当 `zones` 非空时，引擎使用各 Zone 的独立 ROI 和参数进行检测。`zones` 为空时该规则不执行区域检测（向后兼容模式可使用规则顶层参数）。
 
 ---
 
