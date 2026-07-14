@@ -155,7 +155,6 @@
       "radius": 200,
       "confirm_frames": 5,
       "cooldown": 60,
-      "schedule": { "enabled": false, "periods": [] },
       "zones": [
         {
           "roi": [[0.1, 0.1], [0.4, 0.1], [0.4, 0.5], [0.1, 0.5]],
