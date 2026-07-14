@@ -69,8 +69,8 @@ class ZoneConfig(BaseModel):
 class CrowdConfig(BaseModel):
     enabled: bool = False
     max_count: int = 5
-    radius: float = 200
-    confirm_frames: int = 5
+    radius: float = 250
+    confirm_frames: int = 8
     cooldown: float = 60
     roi: list = Field(default_factory=list)
     zones: List[ZoneConfig] = Field(default_factory=list)
@@ -79,18 +79,15 @@ class CrowdConfig(BaseModel):
 
 class FightConfig(BaseModel):
     enabled: bool = False
-    proximity_radius: float = 150
-    min_speed: float = 80  # raised from 60 to avoid normal walking triggers
+    proximity_radius: float = 180
+    min_speed: float = 120  # based on production configs with Pose model
     min_persons: int = 2
-    confirm_frames: int = 6  # raised from 3 for more robust confirmation
+    confirm_frames: int = 8
     cooldown: float = 30
-    # Co-moving filter: direction cosine > threshold + low relative speed = walking together
     co_move_cos_threshold: float = 0.7
-    min_relative_speed: float = 40.0  # px/s, below this = not adversarial
-    # Distance stability: low variance in inter-person distance = co-walking
-    min_distance_variance: float = 10.0  # px², below this = stable distance
-    # Joint overlap: limbs entering opponent's bbox
-    joint_overlap_threshold: int = 1
+    min_relative_speed: float = 55.0  # px/s, below this = not adversarial
+    min_distance_variance: float = 18.0  # px², below this = stable distance
+    joint_overlap_threshold: int = 2
     roi: list = Field(default_factory=list)
     zones: List[ZoneConfig] = Field(default_factory=list)
     schedule: ScheduleConfig = ScheduleConfig()
@@ -98,16 +95,15 @@ class FightConfig(BaseModel):
 
 class FallConfig(BaseModel):
     enabled: bool = False
-    ratio_threshold: float = 1.0
-    min_ratio_change: float = 0.5
-    min_y_drop: float = 20
-    confirm_frames: int = 5
+    ratio_threshold: float = 1.2
+    min_ratio_change: float = 0.4
+    min_y_drop: float = 12
+    confirm_frames: int = 2
     cooldown: float = 30
-    # Enhanced detection parameters
-    min_hip_velocity: float = 30.0  # min hip drop speed (px/frame) to distinguish fall from bending
+    min_hip_velocity: float = 20.0  # min hip drop speed (px/frame)
     spine_angle_threshold: float = 45.0  # angle (deg) below which person is upright
     inactivity_frames: int = 3  # frames of stillness after fall to confirm
-    inactivity_threshold: float = 15.0  # max movement (px) to count as inactive
+    inactivity_threshold: float = 12.0  # max movement (px) to count as inactive
     history_size: int = 10  # pose history buffer size
     roi: list = Field(default_factory=list)
     zones: List[ZoneConfig] = Field(default_factory=list)
@@ -116,14 +112,14 @@ class FallConfig(BaseModel):
 
 class LoiterConfig(BaseModel):
     enabled: bool = False
-    min_duration: float = 60.0       # Minimum dwell time in ROI (seconds) before evaluating
-    max_distance: float = 150.0      # Max displacement from initial position (pixels) to count as loitering
+    min_duration: float = 90.0       # Minimum dwell time in ROI (seconds) before evaluating
+    max_distance: float = 150.0      # Max displacement from initial position (pixels)
     max_displacement_ratio: float = 0.3  # Net displacement / total path length threshold
-    min_total_path: float = 50.0     # Minimum total path (pixels), filters out purely stationary persons
+    min_total_path: float = 40.0     # Minimum total path (pixels), filters out purely stationary persons
     trajectory_window: float = 60.0  # Sliding window for trajectory analysis (seconds)
-    inertia: int = 3                 # Consecutive frames in ROI before counting starts (Frigate-style)
+    inertia: int = 3                 # Consecutive frames in ROI before counting starts
     confirm_frames: int = 5
-    cooldown: float = 120.0
+    cooldown: float = 90.0
     roi: list = Field(default_factory=list)
     zones: List[ZoneConfig] = Field(default_factory=list)
     schedule: ScheduleConfig = ScheduleConfig()
