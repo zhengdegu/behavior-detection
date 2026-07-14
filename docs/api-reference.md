@@ -1,6 +1,6 @@
 # Behavior Detection System — 配置管理 API
 
-> Base URL: `http://<host>:18000`
+> Base URL: `http://75.50.58.28:18000`
 >
 > 认证: `Authorization: Bearer <token>`
 
@@ -12,7 +12,7 @@
 
 ```json
 // Request
-{ "username": "admin", "password": "password123" }
+{ "username": "admin", "password": "Item@2025." }
 
 // Response 200
 { "token": "eyJhbGciOiJIUzI1NiIs...", "username": "admin" }
@@ -36,9 +36,6 @@
     "url": "rtsp://192.168.1.100:554/stream1",
     "online": true,
     "detect": { "fps": 5, "confidence": 0.5 },
-    "roi": [
-      [[0.1, 0.2], [0.9, 0.2], [0.9, 0.9], [0.1, 0.9]]
-    ],
     "rules": {
       "crowd": {
         "enabled": true,
@@ -46,8 +43,21 @@
         "radius": 200,
         "confirm_frames": 5,
         "cooldown": 60,
-        "roi": [],
-        "schedule": { "enabled": false, "periods": [] }
+        "roi": [
+          [[0.1, 0.2], [0.9, 0.2], [0.9, 0.9], [0.1, 0.9]]
+        ],
+        "schedule": { "enabled": false, "periods": [] },
+        "zones": [
+          {
+            "roi": [[0.1, 0.2], [0.4, 0.2], [0.4, 0.6], [0.1, 0.6]],
+            "name": "入口区域",
+            "max_count": 3
+          },
+          {
+            "roi": [[0.5, 0.3], [0.9, 0.3], [0.9, 0.9], [0.5, 0.9]],
+            "name": "通道区域"
+          }
+        ]
       },
       "fight": {
         "enabled": true,
@@ -60,7 +70,9 @@
         "min_relative_speed": 40.0,
         "min_distance_variance": 10.0,
         "joint_overlap_threshold": 1,
-        "roi": [],
+        "roi": [
+          [[0.1, 0.2], [0.9, 0.2], [0.9, 0.9], [0.1, 0.9]]
+        ],
         "schedule": { "enabled": false, "periods": [] }
       },
       "fall": {
@@ -75,7 +87,9 @@
         "inactivity_frames": 3,
         "inactivity_threshold": 15.0,
         "history_size": 10,
-        "roi": [],
+        "roi": [
+          [[0.1, 0.2], [0.9, 0.2], [0.9, 0.9], [0.1, 0.9]]
+        ],
         "schedule": { "enabled": false, "periods": [] }
       },
       "loiter": {
@@ -88,7 +102,9 @@
         "inertia": 3,
         "confirm_frames": 5,
         "cooldown": 120.0,
-        "roi": [],
+        "roi": [
+          [[0.1, 0.2], [0.9, 0.2], [0.9, 0.9], [0.1, 0.9]]
+        ],
         "schedule": { "enabled": false, "periods": [] }
       }
     },
@@ -97,7 +113,7 @@
 ]
 ```
 
-> **说明:** 每个规则都有独立的 `roi` 和 `schedule` 字段。规则级 `roi` 为空时使用摄像头全局 `roi`；规则级 `roi` 非空时覆盖全局 ROI。
+> **说明:** 每个规则都有独立的 `roi`、`schedule` 和 `zones` 字段。规则级 `roi` 为空时使用摄像头全局 `roi`；规则级 `roi` 非空时覆盖全局 ROI。当 `zones` 非空时，引擎使用各 Zone 的独立 ROI 和参数进行检测，忽略规则顶层 `roi`。
 
 ---
 
@@ -135,10 +151,6 @@
     "fps": 3,
     "confidence": 0.6
   },
-  "roi": [
-    [[0.1, 0.2], [0.8, 0.2], [0.8, 0.8], [0.1, 0.8]],
-    [[0.3, 0.05], [0.7, 0.05], [0.7, 0.4], [0.3, 0.4]]
-  ],
   "rules": {
     "crowd": {
       "enabled": true,
@@ -147,7 +159,14 @@
       "confirm_frames": 5,
       "cooldown": 60,
       "roi": [],
-      "schedule": { "enabled": false, "periods": [] }
+      "schedule": { "enabled": false, "periods": [] },
+      "zones": [
+        {
+          "roi": [[0.1, 0.1], [0.4, 0.1], [0.4, 0.5], [0.1, 0.5]],
+          "name": "入口",
+          "max_count": 3
+        }
+      ]
     },
     "fight": {
       "enabled": true,
@@ -273,6 +292,7 @@
 |------|------|------|
 | roi | array | 该规则专属 ROI，空则用摄像头全局 ROI |
 | schedule | object | 检测时间段，见下方 |
+| zones | array | 区域级参数配置列表，见下方 Zone 配置 |
 
 ---
 
@@ -294,6 +314,86 @@
 
 ---
 
+## Zone 配置（区域级参数）
+
+每条规则可包含一个 `zones` 数组，为不同区域设置独立的检测参数。
+
+### 行为逻辑
+
+- `zones` 为空或不存在：使用规则顶层 `roi` + 参数（向后兼容）
+- `zones` 非空：忽略规则顶层 `roi`，为每个 Zone 独立执行检测
+- 每个 Zone 的参数未设置时，继承规则顶层默认值
+- 每个 Zone 维护独立的状态（confirm 计数、cooldown 等）
+- Zone 产生的告警事件包含 `zone_name` 字段
+
+### Zone 对象结构
+
+```json
+{
+  "roi": [[0.1, 0.1], [0.4, 0.1], [0.4, 0.5], [0.1, 0.5]],
+  "name": "入口区域",
+  "max_count": 3,
+  "confirm_frames": 3
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| roi | array | ✅ | 单多边形，归一化坐标。空 `[]` = 全画面，≥3 顶点 = 有效多边形 |
+| name | string | - | 区域名称，出现在告警事件的 `zone_name` 字段 |
+| _(检测参数)_ | number | - | 该规则类型的任意参数，设置则覆盖规则默认值，不设置则继承 |
+
+### 支持的覆盖参数
+
+Zone 可覆盖对应规则的所有数值参数，例如：
+
+- crowd: `max_count`, `radius`, `confirm_frames`, `cooldown`
+- fight: `proximity_radius`, `min_speed`, `min_persons`, `co_move_cos_threshold`, ...
+- fall: `ratio_threshold`, `min_ratio_change`, `min_y_drop`, `min_hip_velocity`, ...
+- loiter: `min_duration`, `max_distance`, `max_displacement_ratio`, `min_total_path`, ...
+
+### 验证规则
+
+- `roi` 长度为 0（全画面）或 ≥ 3（有效多边形），1-2 个顶点返回 422
+- 数值参数执行与规则顶层相同的范围约束
+- 不允许未定义的额外字段（`extra="forbid"`）
+
+### 示例：同一规则不同区域不同灵敏度
+
+```json
+{
+  "crowd": {
+    "enabled": true,
+    "max_count": 5,
+    "radius": 200,
+    "confirm_frames": 5,
+    "cooldown": 60,
+    "zones": [
+      {
+        "roi": [[0.0, 0.0], [0.5, 0.0], [0.5, 1.0], [0.0, 1.0]],
+        "name": "入口",
+        "max_count": 3,
+        "confirm_frames": 3
+      },
+      {
+        "roi": [[0.5, 0.0], [1.0, 0.0], [1.0, 1.0], [0.5, 1.0]],
+        "name": "通道",
+        "max_count": 8
+      },
+      {
+        "roi": [],
+        "name": "全画面兜底",
+        "max_count": 10
+      }
+    ]
+  }
+}
+```
+
+> 上例中："入口"区域 3 人即告警且确认帧更少（更灵敏），"通道"区域 8 人才告警（更宽松），"全画面兜底"不限区域、10 人告警。所有 Zone 的 `radius` 和 `cooldown` 继承顶层默认值。
+
+---
+
 ## Schedule 配置
 
 ```json
@@ -312,62 +412,6 @@
 | periods[].start | "HH:MM" |
 | periods[].end | "HH:MM"，支持跨午夜 |
 | periods[].days | 0=周一, 6=周日 |
-
----
-
-## MQTT 配置
-
-### GET /api/mqtt/config
-
-```json
-// Response 200
-{
-  "host": "mqtt.example.com",
-  "port": 1883,
-  "username": "user",
-  "password": "",
-  "topic": "behavior-detection/events",
-  "enabled": true,
-  "update_interval": 30,
-  "tls_enabled": false,
-  "tls_insecure": false
-}
-```
-
-### PUT /api/mqtt/config
-
-```json
-// Request
-{
-  "host": "mqtt.example.com",
-  "port": 1883,
-  "username": "user",
-  "password": "secret",
-  "topic": "behavior-detection/events",
-  "enabled": true,
-  "update_interval": 30,
-  "tls_enabled": false,
-  "tls_insecure": false
-}
-```
-
-| 字段 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| host | string | "" | Broker 地址 |
-| port | int | 1883 | 端口 |
-| username | string | "" | 用户名 |
-| password | string | "" | 密码，空字符串=保留原密码 |
-| topic | string | "behavior-detection/events" | 发布 Topic |
-| enabled | bool | false | 是否启用 |
-| update_interval | int | 30 | updating 消息间隔 (秒, 5-3600) |
-| tls_enabled | bool | false | 启用 TLS |
-| tls_insecure | bool | false | 跳过证书验证 |
-
-### GET /api/mqtt/status
-
-```json
-{ "connected": true, "active_sessions": 3 }
-```
 
 ---
 
@@ -407,7 +451,6 @@ curl -X PUT http://host:18000/api/cameras/cam01 \
   -H "Content-Type: application/json" \
   -d '{
     "detect": {"fps": 3},
-    "roi": [[[0.1,0.1],[0.9,0.1],[0.9,0.9],[0.1,0.9]]],
     "rules": {
       "crowd": {"enabled":true,"max_count":3},
       "fight": {"enabled":true},
@@ -417,9 +460,5 @@ curl -X PUT http://host:18000/api/cameras/cam01 \
     "mqtt_publish": {"enabled":true,"crowd":true,"fight":true,"fall":true}
   }'
 
-# 配置 MQTT
-curl -X PUT http://host:18000/api/mqtt/config \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"host":"mqtt.server.com","port":1883,"topic":"alerts/behavior","enabled":true}'
+
 ```
