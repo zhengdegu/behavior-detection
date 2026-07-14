@@ -26,6 +26,43 @@ export interface ScheduleConfig {
   periods: TimePeriod[];
 }
 
+// ── Zone Config ──
+
+export interface ZoneConfig {
+  roi: RoiPolygon;       // 单多边形
+  name?: string;         // 可选名称
+  // 通用参数
+  confirm_frames?: number;
+  cooldown?: number;
+  // Crowd 参数
+  max_count?: number;
+  radius?: number;
+  // Fight 参数
+  proximity_radius?: number;
+  min_speed?: number;
+  min_persons?: number;
+  co_move_cos_threshold?: number;
+  min_relative_speed?: number;
+  min_distance_variance?: number;
+  joint_overlap_threshold?: number;
+  // Fall 参数
+  ratio_threshold?: number;
+  min_ratio_change?: number;
+  min_y_drop?: number;
+  min_hip_velocity?: number;
+  spine_angle_threshold?: number;
+  inactivity_frames?: number;
+  inactivity_threshold?: number;
+  history_size?: number;
+  // Loiter 参数
+  min_duration?: number;
+  max_distance?: number;
+  max_displacement_ratio?: number;
+  min_total_path?: number;
+  trajectory_window?: number;
+  inertia?: number;
+}
+
 // ── Detection Rules ──
 
 export interface CrowdConfig {
@@ -36,6 +73,7 @@ export interface CrowdConfig {
   cooldown: number;
   roi?: MultiRoi;
   schedule?: ScheduleConfig;
+  zones?: ZoneConfig[];
 }
 
 export interface FightConfig {
@@ -51,6 +89,7 @@ export interface FightConfig {
   joint_overlap_threshold?: number;
   roi?: MultiRoi;
   schedule?: ScheduleConfig;
+  zones?: ZoneConfig[];
 }
 
 export interface FallConfig {
@@ -67,6 +106,7 @@ export interface FallConfig {
   history_size?: number;
   roi?: MultiRoi;
   schedule?: ScheduleConfig;
+  zones?: ZoneConfig[];
 }
 
 export interface LoiterConfig {
@@ -81,6 +121,7 @@ export interface LoiterConfig {
   cooldown: number;
   roi?: MultiRoi;
   schedule?: ScheduleConfig;
+  zones?: ZoneConfig[];
 }
 
 export interface RulesConfig {

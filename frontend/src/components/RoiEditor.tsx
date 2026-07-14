@@ -7,6 +7,8 @@ interface RoiEditorProps {
   cameraId: string
   initialPolygons: MultiRoi
   onPolygonsChange: (polygons: MultiRoi) => void
+  singleMode?: boolean
+  labels?: string[]
 }
 
 const VERTEX_RADIUS = 6
@@ -33,6 +35,8 @@ export default function RoiEditor({
   cameraId,
   initialPolygons,
   onPolygonsChange,
+  singleMode = false,
+  labels,
 }: RoiEditorProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -158,11 +162,12 @@ export default function RoiEditor({
       // Label
       const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length
       const cy = pts.reduce((s, p) => s + p[1], 0) / pts.length
+      const labelText = labels?.[pi] ? labels[pi] : `ROI ${pi + 1}`
       ctx.font = '600 10px system-ui'
       ctx.fillStyle = color
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.fillText(`ROI ${pi + 1}`, cx, cy)
+      ctx.fillText(labelText, cx, cy)
     }
 
     // Draw current polygon being drawn
@@ -192,7 +197,7 @@ export default function RoiEditor({
         ctx.stroke()
       }
     }
-  }, [polygons, currentVertices, canvasSize, imgLoaded, selectedIdx])
+  }, [polygons, currentVertices, canvasSize, imgLoaded, selectedIdx, labels])
 
   useEffect(() => {
     draw()
@@ -425,7 +430,7 @@ export default function RoiEditor({
 
       {/* Action buttons */}
       <div className="flex flex-wrap gap-1.5">
-        {!isDrawing && (
+        {!isDrawing && !(singleMode && polygons.length >= 1) && (
           <button
             onClick={handleStartDraw}
             className="px-2.5 py-1.5 rounded-md text-[11px] bg-green/10 text-green border border-green/20 cursor-pointer hover:bg-green/20 transition-colors duration-150"

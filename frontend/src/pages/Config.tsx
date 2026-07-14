@@ -143,7 +143,14 @@ export default function Config() {
   useEffect(() => {
     if (selected) {
       setEditRoi(selected.roi ?? [])
-      setEditRules(selected.rules ?? DEFAULT_RULES)
+      // Initialize rules with zones defaulting to [] when missing (requirement 10.4)
+      const rawRules = selected.rules ?? DEFAULT_RULES
+      setEditRules({
+        crowd: { ...rawRules.crowd, zones: rawRules.crowd.zones ?? [] },
+        fight: { ...rawRules.fight, zones: rawRules.fight.zones ?? [] },
+        fall: { ...rawRules.fall, zones: rawRules.fall.zones ?? [] },
+        loiter: { ...rawRules.loiter, zones: rawRules.loiter.zones ?? [] },
+      })
       setEditName(selected.name)
       setEditUrl(selected.url)
       setEditFps(selected.detect?.fps ?? 5)

@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
-import type { RulesConfig, ScheduleConfig, TimePeriod, MultiRoi } from '../types'
+import { useState, useEffect, useRef } from 'react'
+import type { RulesConfig, ScheduleConfig, TimePeriod, MultiRoi, ZoneConfig } from '../types'
 import { Users, Zap, TrendingDown, Clock, Plus, Trash2, Footprints, MapPin } from 'lucide-react'
 import RoiEditor from './RoiEditor'
+import ZoneCard from './ZoneCard'
 
 interface RuleFormProps {
   rules: RulesConfig
@@ -287,6 +288,92 @@ function RuleRoiSection({
   )
 }
 
+// ── Helper: extract numeric defaults from a rule config ──
+
+function extractDefaults(ruleConfig: Record<string, unknown>): Record<string, number> {
+  const defaults: Record<string, number> = {}
+  for (const [key, value] of Object.entries(ruleConfig)) {
+    if (typeof value === 'number') {
+      defaults[key] = value
+    }
+  }
+  return defaults
+}
+
+// ── Zone list section ──
+
+function ZoneListSection({
+  zones,
+  ruleType,
+  defaults,
+  cameraId,
+  onChange,
+}: {
+  zones: ZoneConfig[]
+  ruleType: 'crowd' | 'fight' | 'fall' | 'loiter'
+  defaults: Record<string, number>
+  cameraId: string
+  onChange: (zones: ZoneConfig[]) => void
+}) {
+  // Stable keys: assign monotonically increasing IDs to zones
+  const keyCounterRef = useRef(0)
+  const keysRef = useRef<number[]>([])
+
+  // Sync keys array with zones length
+  while (keysRef.current.length < zones.length) {
+    keysRef.current.push(keyCounterRef.current++)
+  }
+  if (keysRef.current.length > zones.length) {
+    keysRef.current = keysRef.current.slice(0, zones.length)
+  }
+
+  const handleZoneChange = (index: number, zone: ZoneConfig) => {
+    const updated = [...zones]
+    updated[index] = zone
+    onChange(updated)
+  }
+
+  const handleZoneDelete = (index: number) => {
+    keysRef.current = keysRef.current.filter((_, i) => i !== index)
+    onChange(zones.filter((_, i) => i !== index))
+  }
+
+  const handleAddZone = () => {
+    keysRef.current.push(keyCounterRef.current++)
+    onChange([...zones, { roi: [] }])
+  }
+
+  return (
+    <div className="mt-3 pt-3 border-t border-border/50">
+      <div className="text-[10px] text-t3 font-semibold uppercase tracking-wide mb-2">
+        Zones
+      </div>
+      <div className="space-y-2">
+        {zones.map((zone, idx) => (
+          <ZoneCard
+            key={keysRef.current[idx] ?? idx}
+            index={idx}
+            zone={zone}
+            ruleType={ruleType}
+            defaults={defaults}
+            cameraId={cameraId}
+            onChange={(z) => handleZoneChange(idx, z)}
+            onDelete={() => handleZoneDelete(idx)}
+          />
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={handleAddZone}
+        className="flex items-center gap-1 mt-2 text-[10px] text-green hover:text-green/80 cursor-pointer transition-colors duration-150"
+      >
+        <Plus size={10} />
+        添加 Zone
+      </button>
+    </div>
+  )
+}
+
 // ── Default schedule ──
 
 const DEFAULT_SCHEDULE: ScheduleConfig = { enabled: false, periods: [] }
@@ -330,6 +417,9 @@ export default function RuleForm({ rules, onChange, cameraId }: RuleFormProps) {
         />
         {!collapsed.crowd && (
           <div className="mt-2.5">
+            <div className="text-[10px] text-t3 font-semibold uppercase tracking-wide mb-1.5">
+              Default Parameters
+            </div>
             <div className="grid grid-cols-2 gap-1.5">
               <Field
                 label="max_count"
@@ -363,6 +453,15 @@ export default function RuleForm({ rules, onChange, cameraId }: RuleFormProps) {
               roi={rules.crowd.roi ?? []}
               onChange={(roi) => update('crowd', { roi })}
             />
+            {cameraId && (
+              <ZoneListSection
+                zones={rules.crowd.zones ?? []}
+                ruleType="crowd"
+                defaults={extractDefaults(rules.crowd)}
+                cameraId={cameraId}
+                onChange={(zones) => update('crowd', { zones })}
+              />
+            )}
           </div>
         )}
       </div>
@@ -380,6 +479,9 @@ export default function RuleForm({ rules, onChange, cameraId }: RuleFormProps) {
         />
         {!collapsed.fight && (
           <div className="mt-2.5">
+            <div className="text-[10px] text-t3 font-semibold uppercase tracking-wide mb-1.5">
+              Default Parameters
+            </div>
             <div className="grid grid-cols-2 gap-1.5">
               <Field
                 label="proximity_radius"
@@ -442,6 +544,15 @@ export default function RuleForm({ rules, onChange, cameraId }: RuleFormProps) {
               roi={rules.fight.roi ?? []}
               onChange={(roi) => update('fight', { roi })}
             />
+            {cameraId && (
+              <ZoneListSection
+                zones={rules.fight.zones ?? []}
+                ruleType="fight"
+                defaults={extractDefaults(rules.fight)}
+                cameraId={cameraId}
+                onChange={(zones) => update('fight', { zones })}
+              />
+            )}
           </div>
         )}
       </div>
@@ -459,6 +570,9 @@ export default function RuleForm({ rules, onChange, cameraId }: RuleFormProps) {
         />
         {!collapsed.fall && (
           <div className="mt-2.5">
+            <div className="text-[10px] text-t3 font-semibold uppercase tracking-wide mb-1.5">
+              Default Parameters
+            </div>
             <div className="grid grid-cols-2 gap-1.5">
               <Field
                 label="ratio_threshold"
@@ -529,6 +643,15 @@ export default function RuleForm({ rules, onChange, cameraId }: RuleFormProps) {
               roi={rules.fall.roi ?? []}
               onChange={(roi) => update('fall', { roi })}
             />
+            {cameraId && (
+              <ZoneListSection
+                zones={rules.fall.zones ?? []}
+                ruleType="fall"
+                defaults={extractDefaults(rules.fall)}
+                cameraId={cameraId}
+                onChange={(zones) => update('fall', { zones })}
+              />
+            )}
           </div>
         )}
       </div>
@@ -546,6 +669,9 @@ export default function RuleForm({ rules, onChange, cameraId }: RuleFormProps) {
         />
         {!collapsed.loiter && (
           <div className="mt-2.5">
+            <div className="text-[10px] text-t3 font-semibold uppercase tracking-wide mb-1.5">
+              Default Parameters
+            </div>
             <div className="grid grid-cols-2 gap-1.5">
               <Field
                 label="min_duration"
@@ -603,6 +729,15 @@ export default function RuleForm({ rules, onChange, cameraId }: RuleFormProps) {
               roi={rules.loiter.roi ?? []}
               onChange={(roi) => update('loiter', { roi })}
             />
+            {cameraId && (
+              <ZoneListSection
+                zones={rules.loiter.zones ?? []}
+                ruleType="loiter"
+                defaults={extractDefaults(rules.loiter)}
+                cameraId={cameraId}
+                onChange={(zones) => update('loiter', { zones })}
+              />
+            )}
           </div>
         )}
       </div>

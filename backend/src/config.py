@@ -4,7 +4,7 @@ Configuration models — Pydantic v2
 
 from __future__ import annotations
 from typing import Dict, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class TimePeriod(BaseModel):
@@ -20,6 +20,52 @@ class ScheduleConfig(BaseModel):
     periods: List[TimePeriod] = Field(default_factory=list)
 
 
+class ZoneConfig(BaseModel):
+    """单个检测区域配置"""
+    model_config = ConfigDict(extra="forbid")
+
+    roi: List[List[float]] = Field(default_factory=list)  # 空=全画面，≥3顶点=有效多边形
+    name: Optional[str] = None  # 区域名称标识
+
+    @field_validator('roi')
+    @classmethod
+    def roi_empty_or_valid_polygon(cls, v: List[List[float]]) -> List[List[float]]:
+        """roi 要么为空（全画面），要么至少 3 个顶点（有效多边形）。1-2 点无意义。"""
+        if len(v) != 0 and len(v) < 3:
+            raise ValueError('roi must be empty (full frame) or have at least 3 vertices')
+        return v
+    # Crowd 参数
+    max_count: Optional[int] = Field(None, ge=1)
+    radius: Optional[float] = Field(None, gt=0)
+    # Fight 参数
+    proximity_radius: Optional[float] = Field(None, gt=0)
+    min_speed: Optional[float] = Field(None, gt=0)
+    min_persons: Optional[int] = Field(None, ge=2)
+    co_move_cos_threshold: Optional[float] = Field(None, ge=0, le=1)
+    min_relative_speed: Optional[float] = Field(None, ge=0)
+    min_distance_variance: Optional[float] = Field(None, ge=0)
+    joint_overlap_threshold: Optional[int] = Field(None, ge=0)
+    # Fall 参数
+    ratio_threshold: Optional[float] = Field(None, gt=0)
+    min_ratio_change: Optional[float] = Field(None, gt=0)
+    min_y_drop: Optional[float] = Field(None, gt=0)
+    min_hip_velocity: Optional[float] = Field(None, ge=0)
+    spine_angle_threshold: Optional[float] = Field(None, gt=0)
+    inactivity_frames: Optional[int] = Field(None, ge=1)
+    inactivity_threshold: Optional[float] = Field(None, ge=0)
+    history_size: Optional[int] = Field(None, ge=1)
+    # Loiter 参数
+    min_duration: Optional[float] = Field(None, gt=0)
+    max_distance: Optional[float] = Field(None, gt=0)
+    max_displacement_ratio: Optional[float] = Field(None, gt=0, le=1)
+    min_total_path: Optional[float] = Field(None, ge=0)
+    trajectory_window: Optional[float] = Field(None, gt=0)
+    inertia: Optional[int] = Field(None, ge=0)
+    # 通用参数
+    confirm_frames: Optional[int] = Field(None, ge=1)
+    cooldown: Optional[float] = Field(None, ge=0)
+
+
 class CrowdConfig(BaseModel):
     enabled: bool = False
     max_count: int = 5
@@ -27,6 +73,7 @@ class CrowdConfig(BaseModel):
     confirm_frames: int = 5
     cooldown: float = 60
     roi: list = Field(default_factory=list)
+    zones: List[ZoneConfig] = Field(default_factory=list)
     schedule: ScheduleConfig = ScheduleConfig()
 
 
@@ -45,6 +92,7 @@ class FightConfig(BaseModel):
     # Joint overlap: limbs entering opponent's bbox
     joint_overlap_threshold: int = 1
     roi: list = Field(default_factory=list)
+    zones: List[ZoneConfig] = Field(default_factory=list)
     schedule: ScheduleConfig = ScheduleConfig()
 
 
@@ -62,6 +110,7 @@ class FallConfig(BaseModel):
     inactivity_threshold: float = 15.0  # max movement (px) to count as inactive
     history_size: int = 10  # pose history buffer size
     roi: list = Field(default_factory=list)
+    zones: List[ZoneConfig] = Field(default_factory=list)
     schedule: ScheduleConfig = ScheduleConfig()
 
 
@@ -76,6 +125,7 @@ class LoiterConfig(BaseModel):
     confirm_frames: int = 5
     cooldown: float = 120.0
     roi: list = Field(default_factory=list)
+    zones: List[ZoneConfig] = Field(default_factory=list)
     schedule: ScheduleConfig = ScheduleConfig()
 
 
