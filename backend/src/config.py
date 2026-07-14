@@ -26,7 +26,7 @@ class CrowdConfig(BaseModel):
     radius: float = 200
     confirm_frames: int = 5
     cooldown: float = 60
-    roi: List[List[float]] = Field(default_factory=list)
+    roi: list = Field(default_factory=list)
     schedule: ScheduleConfig = ScheduleConfig()
 
 
@@ -44,7 +44,7 @@ class FightConfig(BaseModel):
     min_distance_variance: float = 10.0  # px², below this = stable distance
     # Joint overlap: limbs entering opponent's bbox
     joint_overlap_threshold: int = 1
-    roi: List[List[float]] = Field(default_factory=list)
+    roi: list = Field(default_factory=list)
     schedule: ScheduleConfig = ScheduleConfig()
 
 
@@ -61,7 +61,7 @@ class FallConfig(BaseModel):
     inactivity_frames: int = 3  # frames of stillness after fall to confirm
     inactivity_threshold: float = 15.0  # max movement (px) to count as inactive
     history_size: int = 10  # pose history buffer size
-    roi: List[List[float]] = Field(default_factory=list)
+    roi: list = Field(default_factory=list)
     schedule: ScheduleConfig = ScheduleConfig()
 
 
@@ -75,7 +75,7 @@ class LoiterConfig(BaseModel):
     inertia: int = 3                 # Consecutive frames in ROI before counting starts (Frigate-style)
     confirm_frames: int = 5
     cooldown: float = 120.0
-    roi: List[List[float]] = Field(default_factory=list)
+    roi: list = Field(default_factory=list)
     schedule: ScheduleConfig = ScheduleConfig()
 
 
@@ -116,7 +116,7 @@ class CameraConfig(BaseModel):
     name: str = ""
     url: str = ""
     detect: DetectConfig = DetectConfig()
-    roi: List[List[float]] = Field(default_factory=list)
+    roi: List = Field(default_factory=list)  # Multi-polygon: [[[x,y],...], [[x,y],...]] or legacy single polygon [[x,y],...]
     rules: RulesConfig = RulesConfig()
     mqtt_publish: CameraMQTTPublishConfig = CameraMQTTPublishConfig()
     timezone: Optional[str] = Field(None, description="Camera timezone (IANA format, e.g. 'Asia/Shanghai', 'America/New_York'). Used to calculate time offset between camera and server.")

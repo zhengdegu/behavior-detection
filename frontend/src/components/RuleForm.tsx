@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { RulesConfig, ScheduleConfig, TimePeriod } from '../types'
+import type { RulesConfig, ScheduleConfig, TimePeriod, MultiRoi } from '../types'
 import { Users, Zap, TrendingDown, Clock, Plus, Trash2, Footprints, MapPin } from 'lucide-react'
 import RoiEditor from './RoiEditor'
 
@@ -245,8 +245,8 @@ function RuleRoiSection({
   onChange,
 }: {
   cameraId?: string
-  roi: [number, number][]
-  onChange: (roi: [number, number][]) => void
+  roi: MultiRoi
+  onChange: (roi: MultiRoi) => void
 }) {
   const [useCustom, setUseCustom] = useState(roi.length > 0)
 
@@ -276,8 +276,8 @@ function RuleRoiSection({
       {useCustom && (
         <RoiEditor
           cameraId={cameraId}
-          initialVertices={roi}
-          onVerticesChange={onChange}
+          initialPolygons={roi}
+          onPolygonsChange={onChange}
         />
       )}
       {!useCustom && (

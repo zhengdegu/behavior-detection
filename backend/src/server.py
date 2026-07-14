@@ -350,7 +350,7 @@ class UpdateCameraRequest(BaseModel):
     name: Optional[str] = None
     url: Optional[str] = None
     detect: Optional[DetectConfig] = None
-    roi: Optional[List[List[float]]] = None
+    roi: Optional[list] = None
     rules: Optional[RulesConfig] = None
     mqtt_publish: Optional[CameraMQTTPublishConfig] = None
     timezone: Optional[str] = None

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Plus, Trash2, Pencil, Globe, Zap, Search } from 'lucide-react'
-import type { Camera, RulesConfig, CreateCameraRequest, CameraMQTTPublishConfig } from '../types'
+import type { Camera, RulesConfig, CreateCameraRequest, CameraMQTTPublishConfig, MultiRoi } from '../types'
 import { getCameras, createCamera, updateCamera, deleteCamera, getTimeSyncStatus, setCameraTimezone, triggerManualEvent } from '../api'
 import type { TimeSyncStatus } from '../api'
 import RoiEditor from '../components/RoiEditor'
@@ -75,7 +75,7 @@ export default function Config() {
   const [newUrl, setNewUrl] = useState('')
 
   // Editing state for selected camera
-  const [editRoi, setEditRoi] = useState<[number, number][]>([])
+  const [editRoi, setEditRoi] = useState<MultiRoi>([])
   const [editRules, setEditRules] = useState<RulesConfig>(DEFAULT_RULES)
   const [editName, setEditName] = useState('')
   const [editUrl, setEditUrl] = useState('')
@@ -466,8 +466,8 @@ export default function Config() {
             </h3>
             <RoiEditor
               cameraId={selected.id}
-              initialVertices={editRoi}
-              onVerticesChange={setEditRoi}
+              initialPolygons={editRoi}
+              onPolygonsChange={setEditRoi}
             />
           </div>
 

@@ -5,6 +5,14 @@ export interface DetectConfig {
   confidence: number;
 }
 
+// ── ROI Types ──
+
+/** A single polygon is a list of [x, y] normalised coordinate pairs */
+export type RoiPolygon = [number, number][];
+
+/** Multi-polygon ROI: list of polygons */
+export type MultiRoi = RoiPolygon[];
+
 // ── Detection Schedule ──
 
 export interface TimePeriod {
@@ -26,7 +34,7 @@ export interface CrowdConfig {
   radius: number;
   confirm_frames: number;
   cooldown: number;
-  roi?: [number, number][];
+  roi?: MultiRoi;
   schedule?: ScheduleConfig;
 }
 
@@ -41,7 +49,7 @@ export interface FightConfig {
   min_relative_speed?: number;
   min_distance_variance?: number;
   joint_overlap_threshold?: number;
-  roi?: [number, number][];
+  roi?: MultiRoi;
   schedule?: ScheduleConfig;
 }
 
@@ -57,7 +65,7 @@ export interface FallConfig {
   inactivity_frames?: number;
   inactivity_threshold?: number;
   history_size?: number;
-  roi?: [number, number][];
+  roi?: MultiRoi;
   schedule?: ScheduleConfig;
 }
 
@@ -71,7 +79,7 @@ export interface LoiterConfig {
   inertia: number;
   confirm_frames: number;
   cooldown: number;
-  roi?: [number, number][];
+  roi?: MultiRoi;
   schedule?: ScheduleConfig;
 }
 
@@ -90,7 +98,7 @@ export interface Camera {
   url: string;
   online?: boolean;
   detect?: DetectConfig;
-  roi?: [number, number][];
+  roi?: MultiRoi;
   rules?: RulesConfig;
   mqtt_publish?: CameraMQTTPublishConfig;
 }
@@ -105,7 +113,7 @@ export interface UpdateCameraRequest {
   name?: string;
   url?: string;
   detect?: DetectConfig;
-  roi?: [number, number][];
+  roi?: MultiRoi;
   rules?: RulesConfig;
   mqtt_publish?: CameraMQTTPublishConfig;
 }
