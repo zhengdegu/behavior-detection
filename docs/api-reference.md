@@ -151,6 +151,7 @@
   "rules": {
     "crowd": {
       "enabled": true,
+      "schedule": { "enabled": false, "periods": [] },
       "zones": [
         {
           "roi": [[0.1, 0.1], [0.4, 0.1], [0.4, 0.5], [0.1, 0.5]],
@@ -164,6 +165,7 @@
     },
     "fight": {
       "enabled": true,
+      "schedule": { "enabled": false, "periods": [] },
       "zones": [
         {
           "roi": [[0.1, 0.2], [0.9, 0.2], [0.9, 0.9], [0.1, 0.9]],
@@ -182,6 +184,7 @@
     },
     "fall": {
       "enabled": true,
+      "schedule": { "enabled": false, "periods": [] },
       "zones": [
         {
           "roi": [],
@@ -200,7 +203,8 @@
       ]
     },
     "loiter": {
-      "enabled": false
+      "enabled": false,
+      "schedule": { "enabled": false, "periods": [] }
     }
   },
   "mqtt_publish": {
