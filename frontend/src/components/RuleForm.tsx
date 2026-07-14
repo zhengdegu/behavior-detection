@@ -290,7 +290,7 @@ function RuleRoiSection({
 
 // ── Helper: extract numeric defaults from a rule config ──
 
-function extractDefaults(ruleConfig: Record<string, unknown>): Record<string, number> {
+function extractDefaults(ruleConfig: object): Record<string, number> {
   const defaults: Record<string, number> = {}
   for (const [key, value] of Object.entries(ruleConfig)) {
     if (typeof value === 'number') {

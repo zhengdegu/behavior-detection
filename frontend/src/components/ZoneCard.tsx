@@ -181,7 +181,7 @@ export default function ZoneCard({
             <ZoneField
               key={param.key}
               label={param.label}
-              value={(zone as Record<string, unknown>)[param.key] as number | undefined}
+              value={(zone as unknown as Record<string, unknown>)[param.key] as number | undefined}
               defaultValue={defaults[param.key]}
               unit={param.unit}
               step={param.step}
