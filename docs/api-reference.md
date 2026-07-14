@@ -40,15 +40,64 @@
       [[0.1, 0.2], [0.9, 0.2], [0.9, 0.9], [0.1, 0.9]]
     ],
     "rules": {
-      "crowd": { "enabled": true, "max_count": 5, "radius": 200, "confirm_frames": 5, "cooldown": 60 },
-      "fight": { "enabled": true, "proximity_radius": 150, "min_speed": 80, "min_persons": 2, "confirm_frames": 6, "cooldown": 30 },
-      "fall": { "enabled": false },
-      "loiter": { "enabled": false }
+      "crowd": {
+        "enabled": true,
+        "max_count": 5,
+        "radius": 200,
+        "confirm_frames": 5,
+        "cooldown": 60,
+        "roi": [],
+        "schedule": { "enabled": false, "periods": [] }
+      },
+      "fight": {
+        "enabled": true,
+        "proximity_radius": 150,
+        "min_speed": 80,
+        "min_persons": 2,
+        "confirm_frames": 6,
+        "cooldown": 30,
+        "co_move_cos_threshold": 0.7,
+        "min_relative_speed": 40.0,
+        "min_distance_variance": 10.0,
+        "joint_overlap_threshold": 1,
+        "roi": [],
+        "schedule": { "enabled": false, "periods": [] }
+      },
+      "fall": {
+        "enabled": false,
+        "ratio_threshold": 1.0,
+        "min_ratio_change": 0.5,
+        "min_y_drop": 20,
+        "confirm_frames": 5,
+        "cooldown": 30,
+        "min_hip_velocity": 30.0,
+        "spine_angle_threshold": 45.0,
+        "inactivity_frames": 3,
+        "inactivity_threshold": 15.0,
+        "history_size": 10,
+        "roi": [],
+        "schedule": { "enabled": false, "periods": [] }
+      },
+      "loiter": {
+        "enabled": false,
+        "min_duration": 60.0,
+        "max_distance": 150.0,
+        "max_displacement_ratio": 0.3,
+        "min_total_path": 50.0,
+        "trajectory_window": 60.0,
+        "inertia": 3,
+        "confirm_frames": 5,
+        "cooldown": 120.0,
+        "roi": [],
+        "schedule": { "enabled": false, "periods": [] }
+      }
     },
     "mqtt_publish": { "enabled": true, "crowd": true, "fight": true, "fall": true, "loiter": false }
   }
 ]
 ```
+
+> **说明:** 每个规则都有独立的 `roi` 和 `schedule` 字段。规则级 `roi` 为空时使用摄像头全局 `roi`；规则级 `roi` 非空时覆盖全局 ROI。
 
 ---
 
