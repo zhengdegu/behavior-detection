@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import Config from '../Config'
 import type { Camera, RulesConfig, ZoneConfig } from '../../types'
@@ -141,13 +141,13 @@ describe('Config Page zones data flow', () => {
       expect(mockUpdateCamera).toHaveBeenCalledTimes(1)
     })
 
-    const [calledId, calledData] = mockUpdateCamera.mock.calls[0]
+    const [calledId, calledData] = mockUpdateCamera.mock.calls[0] as [string, { rules: RulesConfig }]
     expect(calledId).toBe('cam-1')
     // The rules in the request should contain zones
     expect(calledData.rules.crowd.zones).toHaveLength(2)
-    expect(calledData.rules.crowd.zones[0].name).toBe('Entrance')
-    expect(calledData.rules.crowd.zones[0].max_count).toBe(3)
-    expect(calledData.rules.crowd.zones[1].name).toBe('Exit')
+    expect(calledData.rules.crowd.zones![0].name).toBe('Entrance')
+    expect(calledData.rules.crowd.zones![0].max_count).toBe(3)
+    expect(calledData.rules.crowd.zones![1].name).toBe('Exit')
   })
 
   // ── Test 4: RuleForm onChange propagates zones changes to editRules state ──
@@ -181,8 +181,8 @@ describe('Config Page zones data flow', () => {
       expect(mockUpdateCamera).toHaveBeenCalledTimes(1)
     })
 
-    const [, calledData] = mockUpdateCamera.mock.calls[0]
+    const [, calledData] = mockUpdateCamera.mock.calls[0] as [string, { rules: RulesConfig }]
     expect(calledData.rules.crowd.zones).toHaveLength(1)
-    expect(calledData.rules.crowd.zones[0].name).toBe('New Zone')
+    expect(calledData.rules.crowd.zones![0].name).toBe('New Zone')
   })
 })

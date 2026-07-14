@@ -49,7 +49,7 @@ describe('RuleForm Zone List Integration', () => {
     },
   }
 
-  let onChange: ReturnType<typeof vi.fn>
+  let onChange: ReturnType<typeof vi.fn<(rules: RulesConfig) => void>>
 
   beforeEach(() => {
     vi.clearAllMocks()
