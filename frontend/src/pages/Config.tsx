@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Plus, Trash2, Pencil, Globe, Zap, Search } from 'lucide-react'
+import { Plus, Trash2, Pencil, Globe, Zap, Search, Power } from 'lucide-react'
 import type { Camera, RulesConfig, CreateCameraRequest, CameraMQTTPublishConfig, MultiRoi } from '../types'
-import { getCameras, createCamera, updateCamera, deleteCamera, getTimeSyncStatus, setCameraTimezone, triggerManualEvent } from '../api'
+import { getCameras, createCamera, updateCamera, deleteCamera, toggleCamera, getTimeSyncStatus, setCameraTimezone, triggerManualEvent } from '../api'
 import type { TimeSyncStatus } from '../api'
 import RoiEditor from '../components/RoiEditor'
 import RuleForm from '../components/RuleForm'
@@ -226,6 +226,18 @@ export default function Config() {
     }
   }
 
+  // ── Toggle camera detection ──
+
+  const handleToggle = async (id: string, currentEnabled: boolean) => {
+    setError(null)
+    try {
+      await toggleCamera(id, !currentEnabled)
+      await fetchCameras()
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Toggle failed')
+    }
+  }
+
   // ── Save configuration ──
 
   const handleSave = async () => {
@@ -359,18 +371,38 @@ export default function Config() {
                   <div className="flex items-center gap-1.5">
                     <span
                       className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                        cam.online ? 'bg-green' : 'bg-red/60'
+                        cam.enabled === false
+                          ? 'bg-t3/40'
+                          : cam.online ? 'bg-green' : 'bg-red/60'
                       }`}
                     />
-                    <span className="text-[11px] font-medium text-t1 truncate">
+                    <span className={`text-[11px] font-medium truncate ${cam.enabled === false ? 'text-t3' : 'text-t1'}`}>
                       {cam.name}
                     </span>
+                    {cam.enabled === false && (
+                      <span className="text-[9px] text-t3/60 bg-card px-1 py-0.5 rounded">OFF</span>
+                    )}
                   </div>
                   <div className="font-mono text-[9px] text-t3 truncate mt-0.5 pl-3">
                     {cam.id}
                   </div>
                 </div>
                 <div className="flex items-center gap-1 ml-1.5 flex-shrink-0">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleToggle(cam.id, cam.enabled !== false)
+                    }}
+                    className={`p-0.5 cursor-pointer transition-colors duration-150 ${
+                      cam.enabled !== false
+                        ? 'text-green hover:text-green/70'
+                        : 'text-t3/40 hover:text-green'
+                    }`}
+                    aria-label={`${cam.enabled !== false ? 'Disable' : 'Enable'} detection for ${cam.name}`}
+                    title={cam.enabled !== false ? 'Click to disable detection' : 'Click to enable detection'}
+                  >
+                    <Power size={12} />
+                  </button>
                   <button
                     onClick={(e) => {
                       e.stopPropagation()

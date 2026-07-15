@@ -81,18 +81,22 @@ export default function Live() {
   }, [])
 
   // ── Derived stats ──
-  const onlineCount = cameras.filter((c) => c.online !== false).length
+  const enabledCameras = useMemo(() => cameras.filter((c) => c.enabled !== false), [cameras])
+  const onlineCount = enabledCameras.filter((c) => c.online !== false).length
   const todayEvents = events.length
   const lastAlertTime = events.length > 0 ? formatTimestamp(events[0].timestamp) : '—'
 
   // ── Pagination ──
   const filteredCameras = useMemo(() => {
-    if (!searchQuery.trim()) return cameras
-    const q = searchQuery.toLowerCase()
-    return cameras.filter(
-      (c) => c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q),
-    )
-  }, [cameras, searchQuery])
+    let list = enabledCameras
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      list = list.filter(
+        (c) => c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q),
+      )
+    }
+    return list
+  }, [enabledCameras, searchQuery])
 
   const totalPages = Math.max(1, Math.ceil(filteredCameras.length / pageSize))
   const pagedCameras = useMemo(

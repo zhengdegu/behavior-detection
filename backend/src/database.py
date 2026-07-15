@@ -193,6 +193,14 @@ class DatabaseManager:
         except Exception:
             pass  # Column already exists, ignore
 
+        # Add enabled column (detection on/off toggle)
+        try:
+            conn.execute(
+                "ALTER TABLE cameras ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1"
+            )
+        except Exception:
+            pass  # Column already exists, ignore
+
         # Add TLS columns to mqtt_config (backward compatible)
         for col, default in [("tls_enabled", 0), ("tls_insecure", 0)]:
             try:
@@ -219,7 +227,7 @@ class CameraRepository:
         conn = self.db.get_connection()
         rows = conn.execute(
             "SELECT id, name, url, detect_config, roi, rules_config, "
-            "mqtt_publish_config, timezone, created_at, updated_at FROM cameras"
+            "mqtt_publish_config, timezone, enabled, created_at, updated_at FROM cameras"
         ).fetchall()
 
         configs: List[CameraConfig] = []
@@ -237,6 +245,7 @@ class CameraRepository:
                         id=row["id"],
                         name=row["name"],
                         url=row["url"],
+                        enabled=bool(row["enabled"]),
                         detect=detect,
                         roi=roi,
                         rules=rules,
@@ -255,7 +264,7 @@ class CameraRepository:
         conn = self.db.get_connection()
         row = conn.execute(
             "SELECT id, name, url, detect_config, roi, rules_config, "
-            "mqtt_publish_config, timezone, created_at, updated_at FROM cameras WHERE id = ?",
+            "mqtt_publish_config, timezone, enabled, created_at, updated_at FROM cameras WHERE id = ?",
             (camera_id,),
         ).fetchone()
 
@@ -274,6 +283,7 @@ class CameraRepository:
                 id=row["id"],
                 name=row["name"],
                 url=row["url"],
+                enabled=bool(row["enabled"]),
                 detect=detect,
                 roi=roi,
                 rules=rules,
@@ -293,8 +303,8 @@ class CameraRepository:
         now = datetime.now(timezone.utc).isoformat()
         conn.execute(
             "INSERT INTO cameras (id, name, url, detect_config, roi, "
-            "rules_config, mqtt_publish_config, timezone, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "rules_config, mqtt_publish_config, timezone, enabled, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 data["id"],
                 data["name"],
@@ -304,6 +314,7 @@ class CameraRepository:
                 json.dumps(data["rules"]),
                 json.dumps(data["mqtt_publish"]),
                 data["timezone"],
+                1 if data["enabled"] else 0,
                 now,
                 now,
             ),
@@ -318,7 +329,7 @@ class CameraRepository:
         conn.execute(
             "UPDATE cameras SET name = ?, url = ?, detect_config = ?, "
             "roi = ?, rules_config = ?, mqtt_publish_config = ?, "
-            "timezone = ?, updated_at = ? WHERE id = ?",
+            "timezone = ?, enabled = ?, updated_at = ? WHERE id = ?",
             (
                 data["name"],
                 data["url"],
@@ -327,6 +338,7 @@ class CameraRepository:
                 json.dumps(data["rules"]),
                 json.dumps(data["mqtt_publish"]),
                 data["timezone"],
+                1 if data["enabled"] else 0,
                 now,
                 data["id"],
             ),

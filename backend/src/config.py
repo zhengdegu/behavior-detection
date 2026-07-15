@@ -161,6 +161,7 @@ class CameraConfig(BaseModel):
     id: str = ""
     name: str = ""
     url: str = ""
+    enabled: bool = True  # Whether detection is active for this camera
     detect: DetectConfig = DetectConfig()
     roi: List = Field(default_factory=list)  # Multi-polygon: [[[x,y],...], [[x,y],...]] or legacy single polygon [[x,y],...]
     rules: RulesConfig = RulesConfig()

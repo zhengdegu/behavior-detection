@@ -126,6 +126,10 @@ export function deleteCamera(id: string): Promise<void> {
   return del<void>(`/api/cameras/${id}`);
 }
 
+export function toggleCamera(id: string, enabled: boolean): Promise<{ id: string; enabled: boolean; message: string }> {
+  return post<{ id: string; enabled: boolean; message: string }>(`/api/cameras/${id}/toggle`, { enabled });
+}
+
 export function getCameraSnapshot(id: string): string {
   return `${BASE_URL}/api/cameras/${id}/snapshot`;
 }

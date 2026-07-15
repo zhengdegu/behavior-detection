@@ -10,6 +10,7 @@ import uvicorn
 
 from .analyzer import CameraAnalyzer
 from .camera_time import CameraTimeSync
+from .cleanup import EventCleanup
 from .database import DatabaseManager, CameraRepository, ModelRepository, TaskRepository, MQTTConfigRepository, Go2RTCConfigRepository, UserRepository, EventRepository, migrate_from_yaml
 from .event_session import EventSessionManager
 from .go2rtc import Go2RTCManager
@@ -126,6 +127,11 @@ def main():
         if not cam_id:
             continue
 
+        # Skip disabled cameras — they stay in database but don't run detection
+        if not cam.enabled:
+            logger.info(f"[{cam_id}] Detection disabled, skipping analyzer start")
+            continue
+
         restream_url = go2rtc_mgr.get_restream_url(cam_id) if go2rtc_mgr.available else None
 
         analyzer = CameraAnalyzer(
@@ -155,7 +161,15 @@ def main():
     atexit.register(mqtt_publisher.disconnect)
     atexit.register(go2rtc_mgr.stop)
 
-    # ── 8. Start FastAPI ──
+    # ── 8. Start event screenshot cleanup (keep 7 days) ──
+    event_cleanup = EventCleanup(
+        events_dir="data/events",
+        max_age_days=int(os.environ.get("EVENT_SCREENSHOT_MAX_DAYS", "7")),
+    )
+    event_cleanup.start()
+    atexit.register(event_cleanup.stop)
+
+    # ── 9. Start FastAPI ──
     uvicorn.run(app, host="0.0.0.0", port=18000, log_level="info")
 
 

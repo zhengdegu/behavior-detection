@@ -137,6 +137,7 @@ export interface Camera {
   id: string;
   name: string;
   url: string;
+  enabled?: boolean;
   online?: boolean;
   detect?: DetectConfig;
   roi?: MultiRoi;

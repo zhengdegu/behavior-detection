@@ -364,11 +364,13 @@ async def list_cameras():
 
     for cid, analyzer in _analyzers.items():
         cfg = db_configs.get(cid)
-        online = analyzer.get_frame() is not None
+        online = analyzer.get_frame() is not None if analyzer else False
+        enabled = cfg.enabled if cfg else True
         camera_info: Dict[str, Any] = {
             "id": cid,
-            "name": analyzer.camera_name,
-            "url": analyzer.url,
+            "name": cfg.name if cfg else (analyzer.camera_name if analyzer else cid),
+            "url": cfg.url if cfg else (analyzer.url if analyzer else ""),
+            "enabled": enabled,
             "online": online,
         }
         if cfg:
@@ -382,6 +384,22 @@ async def list_cameras():
             camera_info["rules"] = RulesConfig().model_dump()
             camera_info["mqtt_publish"] = CameraMQTTPublishConfig().model_dump()
         cameras.append(camera_info)
+
+    # Also include disabled cameras that have no analyzer running
+    for cid, cfg in db_configs.items():
+        if cid not in _analyzers:
+            cameras.append({
+                "id": cid,
+                "name": cfg.name,
+                "url": cfg.url,
+                "enabled": cfg.enabled,
+                "online": False,
+                "detect": cfg.detect.model_dump(),
+                "roi": cfg.roi,
+                "rules": cfg.rules.model_dump(),
+                "mqtt_publish": cfg.mqtt_publish.model_dump(),
+            })
+
     return cameras
 
 
@@ -424,6 +442,7 @@ async def create_camera(req: CreateCameraRequest):
         "id": req.id,
         "name": req.name,
         "url": req.url,
+        "enabled": True,
         "online": False,
         "detect": cam_cfg.detect.model_dump(),
         "roi": cam_cfg.roi,
@@ -434,12 +453,9 @@ async def create_camera(req: CreateCameraRequest):
 
 @app.put("/api/cameras/{camera_id}")
 async def update_camera(camera_id: str, req: UpdateCameraRequest):
-    if camera_id not in _analyzers:
-        return JSONResponse({"error": f"Camera '{camera_id}' not found"}, status_code=404)
-
     cfg = _camera_repo.get_by_id(camera_id) if _camera_repo else None
     if not cfg:
-        return JSONResponse({"error": f"Camera config for '{camera_id}' not found"}, status_code=404)
+        return JSONResponse({"error": f"Camera '{camera_id}' not found"}, status_code=404)
 
     # Update config fields
     if req.name is not None:
@@ -474,25 +490,31 @@ async def update_camera(camera_id: str, req: UpdateCameraRequest):
     if old_analyzer:
         old_analyzer.stop()
 
-    cam_dict = cfg.model_dump()
-    restream_url = _go2rtc_mgr.get_restream_url(camera_id) if (_go2rtc_mgr and _go2rtc_mgr.available) else None
+    # Only restart analyzer if camera is enabled
+    if cfg.enabled:
+        cam_dict = cfg.model_dump()
+        restream_url = _go2rtc_mgr.get_restream_url(camera_id) if (_go2rtc_mgr and _go2rtc_mgr.available) else None
 
-    new_analyzer = CameraAnalyzer(
-        camera_config=cam_dict,
-        model_config=_model_config,
-        on_event=push_event,
-        on_detections=push_detections,
-        restream_url=restream_url,
-        event_session_mgr=_event_session_mgr,
-        camera_time_sync=_camera_time_sync,
-    )
-    _analyzers[camera_id] = new_analyzer
-    new_analyzer.start()
+        new_analyzer = CameraAnalyzer(
+            camera_config=cam_dict,
+            model_config=_model_config,
+            on_event=push_event,
+            on_detections=push_detections,
+            restream_url=restream_url,
+            event_session_mgr=_event_session_mgr,
+            camera_time_sync=_camera_time_sync,
+        )
+        _analyzers[camera_id] = new_analyzer
+        new_analyzer.start()
+    else:
+        # Camera is disabled — remove from analyzers dict
+        _analyzers.pop(camera_id, None)
 
     return {
         "id": camera_id,
         "name": cfg.name,
         "url": cfg.url,
+        "enabled": cfg.enabled,
         "online": False,
         "detect": cfg.detect.model_dump(),
         "roi": cfg.roi,
@@ -505,11 +527,15 @@ async def update_camera(camera_id: str, req: UpdateCameraRequest):
 @app.delete("/api/cameras/{camera_id}")
 async def delete_camera(camera_id: str):
     if camera_id not in _analyzers:
-        return JSONResponse({"error": f"Camera '{camera_id}' not found"}, status_code=404)
+        # Check if it exists in database (could be a disabled camera)
+        cfg = _camera_repo.get_by_id(camera_id) if _camera_repo else None
+        if not cfg:
+            return JSONResponse({"error": f"Camera '{camera_id}' not found"}, status_code=404)
 
-    # Stop analyzer
-    analyzer = _analyzers.pop(camera_id)
-    analyzer.stop()
+    # Stop analyzer if running
+    analyzer = _analyzers.pop(camera_id, None)
+    if analyzer:
+        analyzer.stop()
 
     # Remove stream from go2rtc
     if _go2rtc_mgr and _go2rtc_mgr.available:
@@ -519,6 +545,55 @@ async def delete_camera(camera_id: str):
     _camera_repo.delete(camera_id)
 
     return {"message": f"Camera '{camera_id}' deleted"}
+
+
+class ToggleCameraRequest(BaseModel):
+    enabled: bool
+
+
+@app.post("/api/cameras/{camera_id}/toggle")
+async def toggle_camera(camera_id: str, req: ToggleCameraRequest):
+    """Toggle camera detection on/off"""
+    cfg = _camera_repo.get_by_id(camera_id) if _camera_repo else None
+    if not cfg:
+        return JSONResponse({"error": f"Camera '{camera_id}' not found"}, status_code=404)
+
+    cfg.enabled = req.enabled
+    _camera_repo.update(cfg)
+
+    if req.enabled:
+        # Start detection: create and start analyzer
+        old_analyzer = _analyzers.get(camera_id)
+        if old_analyzer:
+            old_analyzer.stop()
+
+        cam_dict = cfg.model_dump()
+        restream_url = _go2rtc_mgr.get_restream_url(camera_id) if (_go2rtc_mgr and _go2rtc_mgr.available) else None
+
+        new_analyzer = CameraAnalyzer(
+            camera_config=cam_dict,
+            model_config=_model_config,
+            on_event=push_event,
+            on_detections=push_detections,
+            restream_url=restream_url,
+            event_session_mgr=_event_session_mgr,
+            camera_time_sync=_camera_time_sync,
+        )
+        _analyzers[camera_id] = new_analyzer
+        new_analyzer.start()
+        logger.info(f"[{camera_id}] Detection enabled")
+    else:
+        # Stop detection: stop and remove analyzer
+        analyzer = _analyzers.pop(camera_id, None)
+        if analyzer:
+            analyzer.stop()
+        logger.info(f"[{camera_id}] Detection disabled")
+
+    return {
+        "id": camera_id,
+        "enabled": req.enabled,
+        "message": f"Detection {'enabled' if req.enabled else 'disabled'} for camera '{camera_id}'",
+    }
 
 
 @app.get("/api/cameras/{camera_id}/snapshot")
