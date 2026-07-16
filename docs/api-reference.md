@@ -308,6 +308,38 @@ PUT /api/cameras/cam01/rules/fight
 
 ---
 
+### PUT /api/cameras/{camera_id}/rules/{rule_type}/toggle
+
+单独开启或关闭指定摄像头的某个检测算法，不影响其他参数配置。
+
+**路径参数：**
+
+| 参数 | 说明 |
+|------|------|
+| camera_id | 摄像头 ID |
+| rule_type | 算法类型：`crowd`、`fight`、`fall`、`loiter` |
+
+**Request Body：**
+
+```json
+// 开启聚集检测
+PUT /api/cameras/cam01/rules/crowd/toggle
+{ "enabled": true }
+
+// 关闭打架检测
+PUT /api/cameras/cam01/rules/fight/toggle
+{ "enabled": false }
+```
+
+| 状态码 | 说明 | Response Body |
+|--------|------|--------------|
+| 200 | 切换成功 | `{ "message": "Rule 'crowd' enabled for camera 'cam01'", "camera_id": "cam01", "rule_type": "crowd", "enabled": true }` |
+| 400 | rule_type 无效 | `{ "error": "Invalid rule_type 'xxx'. Must be one of: crowd, fight, fall, loiter" }` |
+| 401 | 未认证或 token 过期 | `{ "error": "Not authenticated" }` |
+| 404 | 摄像头不存在 | `{ "error": "Camera 'cam01' not found" }` |
+
+---
+
 ## 检测规则参数
 
 ### 聚集检测 (crowd)
@@ -725,6 +757,39 @@ public class BehaviorDetectionClient {
                 throw new RuntimeException("参数校验失败: " + response.body());
             default:
                 throw new RuntimeException("保存失败, HTTP " + response.statusCode() + ": " + response.body());
+        }
+    }
+
+    /**
+     * 开启或关闭指定摄像头的某个检测算法
+     * @param cameraId 摄像头ID
+     * @param ruleType 算法类型: crowd, fight, fall, loiter
+     * @param enabled true=开启, false=关闭
+     */
+    public void toggleRule(String cameraId, String ruleType, boolean enabled) throws Exception {
+        String body = mapper.writeValueAsString(Map.of("enabled", enabled));
+
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(BASE_URL + "/api/cameras/" + cameraId + "/rules/" + ruleType + "/toggle"))
+            .header("Authorization", "Bearer " + token)
+            .header("Content-Type", "application/json")
+            .PUT(HttpRequest.BodyPublishers.ofString(body))
+            .build();
+
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+        switch (response.statusCode()) {
+            case 200:
+                System.out.println("算法" + (enabled ? "已开启" : "已关闭") + ": " + cameraId + "/" + ruleType);
+                break;
+            case 400:
+                throw new RuntimeException("rule_type 无效: " + response.body());
+            case 401:
+                throw new RuntimeException("Token 无效或已过期");
+            case 404:
+                throw new RuntimeException("摄像头不存在: " + cameraId);
+            default:
+                throw new RuntimeException("操作失败, HTTP " + response.statusCode() + ": " + response.body());
         }
     }
 }

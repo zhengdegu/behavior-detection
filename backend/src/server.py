@@ -656,6 +656,70 @@ async def save_rule_config(camera_id: str, rule_type: str, request: Request):
     }
 
 
+# ── Toggle Rule Enabled/Disabled ──
+
+class ToggleRuleRequest(BaseModel):
+    enabled: bool
+
+
+@app.put("/api/cameras/{camera_id}/rules/{rule_type}/toggle")
+async def toggle_rule(camera_id: str, rule_type: str, req: ToggleRuleRequest):
+    """
+    Toggle a specific detection rule on/off for a camera.
+    
+    Supported rule_type: crowd, fight, fall, loiter
+    Only changes the 'enabled' field, all other parameters remain unchanged.
+    After toggling, the analyzer is restarted to apply the change.
+    """
+    valid_rule_types = ("crowd", "fight", "fall", "loiter")
+    if rule_type not in valid_rule_types:
+        return JSONResponse(
+            {"error": f"Invalid rule_type '{rule_type}'. Must be one of: {', '.join(valid_rule_types)}"},
+            status_code=400,
+        )
+
+    cfg = _camera_repo.get_by_id(camera_id) if _camera_repo else None
+    if not cfg:
+        return JSONResponse({"error": f"Camera '{camera_id}' not found"}, status_code=404)
+
+    # Update the enabled field for the specific rule
+    rule = getattr(cfg.rules, rule_type)
+    rule.enabled = req.enabled
+
+    # Persist to database
+    _camera_repo.update(cfg)
+
+    # Restart analyzer to apply change
+    old_analyzer = _analyzers.get(camera_id)
+    if old_analyzer:
+        old_analyzer.stop()
+
+    if cfg.enabled:
+        cam_dict = cfg.model_dump()
+        restream_url = _go2rtc_mgr.get_restream_url(camera_id) if (_go2rtc_mgr and _go2rtc_mgr.available) else None
+
+        new_analyzer = CameraAnalyzer(
+            camera_config=cam_dict,
+            model_config=_model_config,
+            on_event=push_event,
+            on_detections=push_detections,
+            restream_url=restream_url,
+            event_session_mgr=_event_session_mgr,
+            camera_time_sync=_camera_time_sync,
+        )
+        _analyzers[camera_id] = new_analyzer
+        new_analyzer.start()
+    else:
+        _analyzers.pop(camera_id, None)
+
+    return {
+        "message": f"Rule '{rule_type}' {'enabled' if req.enabled else 'disabled'} for camera '{camera_id}'",
+        "camera_id": camera_id,
+        "rule_type": rule_type,
+        "enabled": req.enabled,
+    }
+
+
 class ToggleCameraRequest(BaseModel):
     enabled: bool
 
