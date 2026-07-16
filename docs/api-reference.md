@@ -18,6 +18,12 @@
 { "token": "eyJhbGciOiJIUzI1NiIs...", "username": "admin" }
 ```
 
+| 状态码 | 说明 | Response Body |
+|--------|------|--------------|
+| 200 | 登录成功，返回 token | `{ "token": "eyJhbGciOiJIUzI1NiIs...", "username": "admin" }` |
+| 400 | 请求体格式错误或缺少字段 | `{ "error": "Missing required field: username" }` |
+| 401 | 用户名或密码错误 | `{ "error": "Invalid username or password" }` |
+
 ---
 
 ## 摄像头配置
@@ -25,6 +31,11 @@
 ### GET /api/cameras
 
 获取所有摄像头及其完整配置。
+
+| 状态码 | 说明 | Response Body |
+|--------|------|--------------|
+| 200 | 成功，返回摄像头列表 | `[ { "id": "cam01", "name": "大堂入口", ... } ]` |
+| 401 | 未认证或 token 过期 | `{ "error": "Not authenticated" }` |
 
 **Response 200:**
 
@@ -117,11 +128,26 @@
 | name | string | ✅ | 名称 |
 | url | string | ✅ | RTSP 流地址 |
 
+| 状态码 | 说明 | Response Body |
+|--------|------|--------------|
+| 200 | 添加成功 | `{ "message": "Camera 'cam01' created", "id": "cam01" }` |
+| 400 | 请求体格式错误或缺少必填字段 | `{ "error": "Missing required field: url" }` |
+| 401 | 未认证或 token 过期 | `{ "error": "Not authenticated" }` |
+| 409 | 摄像头 ID 已存在 | `{ "error": "Camera 'cam01' already exists" }` |
+
 ---
 
 ### PUT /api/cameras/{camera_id}
 
 更新摄像头配置。所有字段可选，仅传需要修改的。更新后自动重启检测。
+
+| 状态码 | 说明 | Response Body |
+|--------|------|--------------|
+| 200 | 更新成功 | `{ "message": "Camera 'cam01' updated" }` |
+| 400 | 请求体格式错误 | `{ "error": "Invalid JSON body" }` |
+| 401 | 未认证或 token 过期 | `{ "error": "Not authenticated" }` |
+| 404 | 摄像头不存在 | `{ "error": "Camera 'cam01' not found" }` |
+| 422 | 参数校验失败（如 ROI 顶点数不合法） | `{ "error": "ROI must have 0 or >= 3 vertices" }` |
 
 ```json
 // Request
@@ -212,6 +238,73 @@
 // Response 200
 { "message": "Camera 'cam01' deleted" }
 ```
+
+| 状态码 | 说明 | Response Body |
+|--------|------|--------------|
+| 200 | 删除成功 | `{ "message": "Camera 'cam01' deleted" }` |
+| 401 | 未认证或 token 过期 | `{ "error": "Not authenticated" }` |
+| 404 | 摄像头不存在 | `{ "error": "Camera 'cam01' not found" }` |
+
+---
+
+### PUT /api/cameras/{camera_id}/rules/{rule_type}
+
+按摄像头和算法类型保存检测规则配置。仅更新传入的字段，未传的字段保持原值。更新后自动重启检测。
+
+**路径参数：**
+
+| 参数 | 说明 |
+|------|------|
+| camera_id | 摄像头 ID |
+| rule_type | 算法类型：`crowd`、`fight`、`fall`、`loiter` |
+
+**Request Body（仅传需要修改的字段）：**
+
+```json
+// 示例：更新 cam01 的聚集检测配置
+PUT /api/cameras/cam01/rules/crowd
+
+{
+  "enabled": true,
+  "zones": [
+    {
+      "roi": [[0.1, 0.1], [0.5, 0.1], [0.5, 0.6], [0.1, 0.6]],
+      "name": "入口",
+      "max_count": 3,
+      "radius": 180,
+      "confirm_frames": 5,
+      "cooldown": 60,
+    }
+  ]
+}
+```
+
+```json
+// 示例：更新 cam01 的打架检测配置
+PUT /api/cameras/cam01/rules/fight
+
+{
+  "enabled": true,
+  "zones": [
+    {
+      "roi": [[0.1, 0.1], [0.5, 0.1], [0.5, 0.6], [0.1, 0.6]],
+      "name": "入口",
+      "max_count": 3,
+      "radius": 180,
+      "confirm_frames": 5,
+      "cooldown": 60,
+    }
+  ]
+}
+```
+
+| 状态码 | 说明 | Response Body |
+|--------|------|--------------|
+| 200 | 更新成功 | `{ "message": "Rule 'crowd' updated for camera 'cam01'", "camera_id": "cam01", "rule_type": "crowd", "config": { ... } }` |
+| 400 | rule_type 无效或请求体格式错误 | `{ "error": "Invalid rule_type 'xxx'. Must be one of: crowd, fight, fall, loiter" }` |
+| 401 | 未认证或 token 过期 | `{ "error": "Not authenticated" }` |
+| 404 | 摄像头不存在 | `{ "error": "Camera 'cam01' not found" }` |
+| 422 | 参数校验失败 | `{ "error": "Parameter validation failed: ..." }` |
 
 ---
 
@@ -405,17 +498,20 @@ Zone 可覆盖对应规则的所有数值参数，例如：
 { "error": "Error description" }
 ```
 
-| 状态码 | 说明 |
-|--------|------|
-| 400 | 参数错误 |
-| 401 | 未认证 |
-| 404 | 资源不存在 |
-| 409 | ID 冲突 |
-| 503 | 服务不可用 |
+| 状态码 | 说明 | Response Body |
+|--------|------|--------------|
+| 400 | 参数错误 | `{ "error": "具体错误描述" }` |
+| 401 | 未认证 | `{ "error": "Not authenticated" }` |
+| 404 | 资源不存在 | `{ "error": "Camera '{id}' not found" }` |
+| 409 | ID 冲突 | `{ "error": "Camera '{id}' already exists" }` |
+| 422 | 参数校验失败 | `{ "error": "具体校验错误描述" }` |
+| 503 | 服务不可用 | `{ "error": "Service unavailable" }` |
 
 ---
 
 ## 集成示例
+
+### Shell (curl)
 
 ```bash
 # 登录
@@ -443,6 +539,193 @@ curl -X PUT http://host:18000/api/cameras/cam01 \
     },
     "mqtt_publish": {"enabled":true,"crowd":true,"fight":true,"fall":true}
   }'
+```
 
+### Java (HttpClient)
 
+```java
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+public class BehaviorDetectionClient {
+
+    private static final String BASE_URL = "http://75.50.58.28:18000";
+    private final HttpClient client = HttpClient.newHttpClient();
+    private final ObjectMapper mapper = new ObjectMapper();
+    private String token;
+
+    /**
+     * 登录获取 token
+     */
+    public void login(String username, String password) throws Exception {
+        String body = mapper.writeValueAsString(
+            Map.of("username", username, "password", password)
+        );
+
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(BASE_URL + "/api/auth/login"))
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(body))
+            .build();
+
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+        switch (response.statusCode()) {
+            case 200:
+                JsonNode json = mapper.readTree(response.body());
+                this.token = json.get("token").asText();
+                break;
+            case 401:
+                throw new RuntimeException("认证失败: 用户名或密码错误");
+            default:
+                throw new RuntimeException("登录失败, HTTP " + response.statusCode() + ": " + response.body());
+        }
+    }
+
+    /**
+     * 获取所有摄像头配置
+     */
+    public String getCameras() throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(BASE_URL + "/api/cameras"))
+            .header("Authorization", "Bearer " + token)
+            .GET()
+            .build();
+
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+        switch (response.statusCode()) {
+            case 200:
+                return response.body();
+            case 401:
+                throw new RuntimeException("Token 无效或已过期，请重新登录");
+            default:
+                throw new RuntimeException("获取摄像头失败, HTTP " + response.statusCode());
+        }
+    }
+
+    /**
+     * 添加摄像头
+     */
+    public void addCamera(String id, String name, String rtspUrl) throws Exception {
+        String body = mapper.writeValueAsString(
+            Map.of("id", id, "name", name, "url", rtspUrl)
+        );
+
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(BASE_URL + "/api/cameras"))
+            .header("Authorization", "Bearer " + token)
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(body))
+            .build();
+
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+        switch (response.statusCode()) {
+            case 200:
+                System.out.println("摄像头添加成功: " + id);
+                break;
+            case 400:
+                throw new RuntimeException("参数错误: " + response.body());
+            case 401:
+                throw new RuntimeException("Token 无效或已过期");
+            case 409:
+                throw new RuntimeException("摄像头 ID 已存在: " + id);
+            default:
+                throw new RuntimeException("添加失败, HTTP " + response.statusCode() + ": " + response.body());
+        }
+    }
+
+    /**
+     * 更新摄像头配置
+     */
+    public void updateCamera(String cameraId, String configJson) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(BASE_URL + "/api/cameras/" + cameraId))
+            .header("Authorization", "Bearer " + token)
+            .header("Content-Type", "application/json")
+            .PUT(HttpRequest.BodyPublishers.ofString(configJson))
+            .build();
+
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+        switch (response.statusCode()) {
+            case 200:
+                System.out.println("摄像头配置更新成功: " + cameraId);
+                break;
+            case 400:
+                throw new RuntimeException("请求格式错误: " + response.body());
+            case 401:
+                throw new RuntimeException("Token 无效或已过期");
+            case 404:
+                throw new RuntimeException("摄像头不存在: " + cameraId);
+            case 422:
+                throw new RuntimeException("参数校验失败: " + response.body());
+            default:
+                throw new RuntimeException("更新失败, HTTP " + response.statusCode() + ": " + response.body());
+        }
+    }
+
+    /**
+     * 删除摄像头
+     */
+    public void deleteCamera(String cameraId) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(BASE_URL + "/api/cameras/" + cameraId))
+            .header("Authorization", "Bearer " + token)
+            .DELETE()
+            .build();
+
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+        switch (response.statusCode()) {
+            case 200:
+                System.out.println("摄像头删除成功: " + cameraId);
+                break;
+            case 401:
+                throw new RuntimeException("Token 无效或已过期");
+            case 404:
+                throw new RuntimeException("摄像头不存在: " + cameraId);
+            default:
+                throw new RuntimeException("删除失败, HTTP " + response.statusCode() + ": " + response.body());
+        }
+    }
+
+    /**
+     * 按摄像头+算法类型保存规则配置
+     * @param cameraId 摄像头ID
+     * @param ruleType 算法类型: crowd, fight, fall, loiter
+     * @param ruleConfigJson 规则配置JSON（仅传需要修改的字段）
+     */
+    public String saveRuleConfig(String cameraId, String ruleType, String ruleConfigJson) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(BASE_URL + "/api/cameras/" + cameraId + "/rules/" + ruleType))
+            .header("Authorization", "Bearer " + token)
+            .header("Content-Type", "application/json")
+            .PUT(HttpRequest.BodyPublishers.ofString(ruleConfigJson))
+            .build();
+
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+        switch (response.statusCode()) {
+            case 200:
+                System.out.println("规则配置保存成功: " + cameraId + "/" + ruleType);
+                return response.body();
+            case 400:
+                throw new RuntimeException("参数错误(rule_type无效或JSON格式错误): " + response.body());
+            case 401:
+                throw new RuntimeException("Token 无效或已过期");
+            case 404:
+                throw new RuntimeException("摄像头不存在: " + cameraId);
+            case 422:
+                throw new RuntimeException("参数校验失败: " + response.body());
+            default:
+                throw new RuntimeException("保存失败, HTTP " + response.statusCode() + ": " + response.body());
+        }
+    }
+}
 ```

@@ -150,7 +150,7 @@ class MQTTConfig(BaseModel):
 
 
 class CameraMQTTPublishConfig(BaseModel):
-    enabled: bool = False
+    enabled: bool = True
     crowd: bool = True
     fight: bool = True
     fall: bool = True

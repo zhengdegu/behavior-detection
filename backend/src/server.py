@@ -20,7 +20,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import FileResponse as StarletteFileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from .config import CameraConfig, RulesConfig, DetectConfig, AppConfig, MQTTConfig, CameraMQTTPublishConfig, Go2RTCConfig
 from .analyzer import CameraAnalyzer
@@ -545,6 +545,115 @@ async def delete_camera(camera_id: str):
     _camera_repo.delete(camera_id)
 
     return {"message": f"Camera '{camera_id}' deleted"}
+
+
+# ── Save Rule Config by Camera + Algorithm ──
+
+class SaveRuleConfigRequest(BaseModel):
+    """Save specific rule configuration for a camera by algorithm type"""
+    enabled: Optional[bool] = None
+    schedule: Optional[dict] = None
+    zones: Optional[list] = None
+    # Allow any additional rule-specific parameters
+    model_config = ConfigDict(extra="allow")
+
+
+@app.put("/api/cameras/{camera_id}/rules/{rule_type}")
+async def save_rule_config(camera_id: str, rule_type: str, request: Request):
+    """
+    Save configuration for a specific algorithm rule on a specific camera.
+    
+    Supported rule_type: crowd, fight, fall, loiter
+    Only the provided fields will be updated; unspecified fields keep their current values.
+    After saving, the analyzer is restarted to apply the new configuration.
+    """
+    # Validate rule_type
+    valid_rule_types = ("crowd", "fight", "fall", "loiter")
+    if rule_type not in valid_rule_types:
+        return JSONResponse(
+            {"error": f"Invalid rule_type '{rule_type}'. Must be one of: {', '.join(valid_rule_types)}"},
+            status_code=400,
+        )
+
+    # Get camera config from database
+    cfg = _camera_repo.get_by_id(camera_id) if _camera_repo else None
+    if not cfg:
+        return JSONResponse({"error": f"Camera '{camera_id}' not found"}, status_code=404)
+
+    # Parse request body
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON body"}, status_code=400)
+
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "Request body must be a JSON object"}, status_code=400)
+
+    # Get current rule config
+    current_rule = getattr(cfg.rules, rule_type)
+    current_dict = current_rule.model_dump()
+
+    # Merge: only update provided fields
+    for key, value in body.items():
+        if key in current_dict:
+            current_dict[key] = value
+        else:
+            return JSONResponse(
+                {"error": f"Unknown parameter '{key}' for rule type '{rule_type}'"},
+                status_code=422,
+            )
+
+    # Validate and rebuild the rule config object
+    try:
+        from .config import CrowdConfig, FightConfig, FallConfig, LoiterConfig
+        rule_classes = {
+            "crowd": CrowdConfig,
+            "fight": FightConfig,
+            "fall": FallConfig,
+            "loiter": LoiterConfig,
+        }
+        new_rule = rule_classes[rule_type](**current_dict)
+    except Exception as e:
+        return JSONResponse(
+            {"error": f"Parameter validation failed: {str(e)}"},
+            status_code=422,
+        )
+
+    # Apply to camera config
+    setattr(cfg.rules, rule_type, new_rule)
+
+    # Persist to database
+    _camera_repo.update(cfg)
+
+    # Restart analyzer to apply new config
+    old_analyzer = _analyzers.get(camera_id)
+    if old_analyzer:
+        old_analyzer.stop()
+
+    if cfg.enabled:
+        cam_dict = cfg.model_dump()
+        restream_url = _go2rtc_mgr.get_restream_url(camera_id) if (_go2rtc_mgr and _go2rtc_mgr.available) else None
+
+        new_analyzer = CameraAnalyzer(
+            camera_config=cam_dict,
+            model_config=_model_config,
+            on_event=push_event,
+            on_detections=push_detections,
+            restream_url=restream_url,
+            event_session_mgr=_event_session_mgr,
+            camera_time_sync=_camera_time_sync,
+        )
+        _analyzers[camera_id] = new_analyzer
+        new_analyzer.start()
+    else:
+        _analyzers.pop(camera_id, None)
+
+    return {
+        "message": f"Rule '{rule_type}' updated for camera '{camera_id}'",
+        "camera_id": camera_id,
+        "rule_type": rule_type,
+        "config": new_rule.model_dump(),
+    }
 
 
 class ToggleCameraRequest(BaseModel):
