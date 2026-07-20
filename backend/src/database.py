@@ -166,6 +166,21 @@ class DatabaseManager:
             CREATE INDEX IF NOT EXISTS idx_events_camera_id ON detection_events(camera_id);
             CREATE INDEX IF NOT EXISTS idx_events_sub_type ON detection_events(sub_type);
             CREATE INDEX IF NOT EXISTS idx_events_timestamp ON detection_events(timestamp DESC);
+
+            CREATE TABLE IF NOT EXISTS mqtt_sessions (
+                event_id TEXT PRIMARY KEY,
+                camera_id TEXT NOT NULL,
+                camera_name TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'triggered',
+                created_at REAL NOT NULL,
+                last_update_time REAL NOT NULL,
+                resolve_threshold REAL NOT NULL DEFAULT 30.0,
+                latest_event_data TEXT NOT NULL DEFAULT '{}',
+                track_ids TEXT NOT NULL DEFAULT '[]'
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_mqtt_sessions_camera_id ON mqtt_sessions(camera_id);
             """
         )
 
@@ -804,6 +819,76 @@ class EventRepository:
             f"SELECT COUNT(*) as cnt FROM detection_events {where}", params
         ).fetchone()
         return row["cnt"] if row else 0
+
+
+# ── MQTTSessionRepository ──
+
+
+class MQTTSessionRepository:
+    """Persists active MQTT event sessions for crash recovery"""
+
+    def __init__(self, db: DatabaseManager):
+        self.db = db
+
+    def save(self, session_data: dict) -> None:
+        """Insert or replace a session record (called on triggered)"""
+        conn = self.db.get_connection()
+        conn.execute(
+            """INSERT OR REPLACE INTO mqtt_sessions
+               (event_id, camera_id, camera_name, event_type, status,
+                created_at, last_update_time, resolve_threshold, latest_event_data, track_ids)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                session_data["event_id"],
+                session_data["camera_id"],
+                session_data["camera_name"],
+                session_data["event_type"],
+                session_data["status"],
+                session_data["created_at"],
+                session_data["last_update_time"],
+                session_data["resolve_threshold"],
+                json.dumps(session_data.get("latest_event_data", {}), ensure_ascii=False),
+                json.dumps(sorted(session_data.get("track_ids", []))),
+            ),
+        )
+        conn.commit()
+
+    def delete(self, event_id: str) -> None:
+        """Remove a session record (after resolved is successfully sent)"""
+        conn = self.db.get_connection()
+        conn.execute("DELETE FROM mqtt_sessions WHERE event_id = ?", (event_id,))
+        conn.commit()
+
+    def get_all_active(self) -> list:
+        """Load all unresolved sessions (for startup recovery)"""
+        conn = self.db.get_connection()
+        rows = conn.execute(
+            "SELECT * FROM mqtt_sessions WHERE status != 'resolved'"
+        ).fetchall()
+        results = []
+        for row in rows:
+            try:
+                results.append({
+                    "event_id": row["event_id"],
+                    "camera_id": row["camera_id"],
+                    "camera_name": row["camera_name"],
+                    "event_type": row["event_type"],
+                    "status": row["status"],
+                    "created_at": row["created_at"],
+                    "last_update_time": row["last_update_time"],
+                    "resolve_threshold": row["resolve_threshold"],
+                    "latest_event_data": json.loads(row["latest_event_data"]),
+                    "track_ids": json.loads(row["track_ids"]),
+                })
+            except (json.JSONDecodeError, Exception) as e:
+                logger.warning(f"Failed to load mqtt_session record: {e}")
+        return results
+
+    def delete_all(self) -> None:
+        """Clear all session records (after startup recovery completes)"""
+        conn = self.db.get_connection()
+        conn.execute("DELETE FROM mqtt_sessions")
+        conn.commit()
 
 
 # ── YAML Migration Tool ──

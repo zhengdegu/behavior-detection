@@ -11,7 +11,7 @@ import uvicorn
 from .analyzer import CameraAnalyzer
 from .camera_time import CameraTimeSync
 from .cleanup import EventCleanup
-from .database import DatabaseManager, CameraRepository, ModelRepository, TaskRepository, MQTTConfigRepository, Go2RTCConfigRepository, UserRepository, EventRepository, migrate_from_yaml
+from .database import DatabaseManager, CameraRepository, ModelRepository, TaskRepository, MQTTConfigRepository, Go2RTCConfigRepository, UserRepository, EventRepository, MQTTSessionRepository, migrate_from_yaml
 from .event_session import EventSessionManager
 from .go2rtc import Go2RTCManager
 from .mqtt_publisher import MQTTPublisher
@@ -50,6 +50,7 @@ def main():
     go2rtc_config_repo = Go2RTCConfigRepository(db)
     user_repo = UserRepository(db)
     event_repo = EventRepository(db)
+    session_repo = MQTTSessionRepository(db)
 
     # Create default admin user if no users exist
     if user_repo.count() == 0:
@@ -117,6 +118,7 @@ def main():
         mqtt_config_repo=mqtt_config_repo,
         camera_repo=camera_repo,
         camera_time_sync=camera_time_sync,
+        session_repo=session_repo,
     )
 
     # ── 5. Start camera analyzers (using restream_url and on_detections) ──
@@ -157,6 +159,7 @@ def main():
     logger.info(f"Started {len(analyzers)} camera analyzers")
 
     # ── 7. Register exit cleanup ──
+    atexit.register(event_session_mgr.stop)
     atexit.register(camera_time_sync.stop)
     atexit.register(mqtt_publisher.disconnect)
     atexit.register(go2rtc_mgr.stop)

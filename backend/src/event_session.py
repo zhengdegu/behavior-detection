@@ -23,7 +23,7 @@ class EventSession:
     event_id: str
     camera_id: str
     camera_name: str
-    event_type: str  # "crowd" | "fight" | "fall"
+    event_type: str  # "crowd" | "fight" | "fall" | "loiter"
     status: str = "triggered"  # "triggered" | "updating" | "resolved"
     created_at: float = 0.0
     last_update_time: float = 0.0
@@ -40,17 +40,29 @@ class EventSessionManager:
 
     def __init__(self, mqtt_publisher: MQTTPublisher,
                  mqtt_config_repo, camera_repo,
-                 camera_time_sync: Optional[CameraTimeSync] = None):
+                 camera_time_sync: Optional[CameraTimeSync] = None,
+                 session_repo=None):
         self._mqtt_publisher = mqtt_publisher
         self._mqtt_config_repo = mqtt_config_repo
         self._camera_repo = camera_repo
         self._camera_time_sync = camera_time_sync
+        self._session_repo = session_repo  # MQTTSessionRepository for persistence
         self._sessions: Dict[str, EventSession] = {}
         self._lock = threading.Lock()
         # Cached MQTT config to avoid querying database every frame
         self._cached_mqtt_config: Optional[MQTTConfig] = None
         self._cached_mqtt_config_time: float = 0.0
         self._mqtt_config_cache_ttl: float = 5.0  # refresh every 5 seconds
+
+        # Watchdog config
+        self._watchdog_interval = 60.0  # check every 60 seconds
+        self._max_session_age = 300.0   # force resolve after 5 minutes without update
+        self._watchdog_running = True
+        self._watchdog_thread = threading.Thread(target=self._watchdog_loop, daemon=True)
+        self._watchdog_thread.start()
+
+        # Startup recovery: resolve stale sessions from previous run
+        self._recover_stale_sessions()
 
     def handle_event(self, event: dict, camera_config: dict) -> None:
         """Process events produced by BehaviorEngine"""
@@ -77,7 +89,96 @@ class EventSessionManager:
         with self._lock:
             return len(self._sessions)
 
+    def force_resolve_camera(self, camera_id: str) -> None:
+        """Force resolve all active sessions for a camera (called when analyzer stops)"""
+        try:
+            with self._lock:
+                resolved_keys = []
+                for key, session in self._sessions.items():
+                    if session.camera_id != camera_id:
+                        continue
+                    session.status = "resolved"
+                    self._publish_message(session)
+                    self._delete_persisted_session(session.event_id)
+                    resolved_keys.append(key)
+
+                for key in resolved_keys:
+                    del self._sessions[key]
+
+                if resolved_keys:
+                    logger.info(f"Force resolved {len(resolved_keys)} sessions for camera {camera_id}")
+        except Exception as e:
+            logger.error(f"force_resolve_camera error: {e}")
+
+    def stop(self) -> None:
+        """Stop watchdog thread (called on shutdown)"""
+        self._watchdog_running = False
+
     # ── Internal methods ──
+
+    def _recover_stale_sessions(self) -> None:
+        """Startup recovery: resolve all sessions persisted from previous run"""
+        if not self._session_repo:
+            return
+        try:
+            stale_sessions = self._session_repo.get_all_active()
+            if not stale_sessions:
+                return
+
+            logger.info(f"Recovering {len(stale_sessions)} stale MQTT sessions from previous run")
+            mqtt_config = self._get_mqtt_config()
+
+            resolved_count = 0
+            for s in stale_sessions:
+                # Build a minimal resolved message
+                message = {
+                    "event_id": s["event_id"],
+                    "status": "resolved",
+                    "type": s["event_type"],
+                    "camera_id": s["camera_id"],
+                    "camera_name": s["camera_name"],
+                    "timestamp": self._format_event_timestamp(
+                        s["camera_id"], time.time()),
+                    "detail": "",
+                    "data": {},
+                    "image_url": "",
+                    "duration": round(time.time() - s["created_at"], 1),
+                }
+                if mqtt_config.enabled and mqtt_config.topic:
+                    self._mqtt_publisher.publish(mqtt_config.topic, message)
+                resolved_count += 1
+
+            # Clear all persisted sessions after recovery
+            self._session_repo.delete_all()
+            logger.info(f"Recovered and resolved {resolved_count} stale sessions")
+        except Exception as e:
+            logger.error(f"Session recovery failed: {e}")
+
+    def _watchdog_loop(self) -> None:
+        """Background watchdog: force resolve stale sessions that haven't been updated"""
+        while self._watchdog_running:
+            time.sleep(self._watchdog_interval)
+            if not self._watchdog_running:
+                break
+            try:
+                with self._lock:
+                    now = time.time()
+                    stale_keys = []
+                    for key, session in self._sessions.items():
+                        age = now - session.last_update_time
+                        if age > self._max_session_age:
+                            session.status = "resolved"
+                            self._publish_message(session)
+                            self._delete_persisted_session(session.event_id)
+                            stale_keys.append(key)
+
+                    for key in stale_keys:
+                        del self._sessions[key]
+
+                    if stale_keys:
+                        logger.warning(f"Watchdog force resolved {len(stale_keys)} stale sessions")
+            except Exception as e:
+                logger.error(f"Session watchdog error: {e}")
 
     def _get_mqtt_config(self) -> MQTTConfig:
         """Get MQTT config with caching to avoid querying database every frame"""
@@ -142,6 +243,8 @@ class EventSessionManager:
             self._sessions[session.event_id] = session
             self._publish_message(session)
             session.last_publish_time = now
+            # Persist to database for crash recovery
+            self._persist_session(session)
 
     def _tick_no_event_locked(self, camera_id: str, untriggered_types: list) -> None:
         """Increment untriggered frame counter, check for resolved (lock already held)
@@ -166,8 +269,13 @@ class EventSessionManager:
             time_since_last_update = now - session.last_update_time
             if time_since_last_update >= session.resolve_threshold:
                 session.status = "resolved"
-                self._publish_message(session)
-                resolved_keys.append(key)
+                if self._publish_message(session):
+                    resolved_keys.append(key)
+                    self._delete_persisted_session(session.event_id)
+                else:
+                    # Publish failed, revert status and retry next frame
+                    session.status = "updating"
+                    logger.warning(f"Resolved publish failed for {session.event_id}, will retry next frame")
 
         for key in resolved_keys:
             del self._sessions[key]
@@ -271,14 +379,47 @@ class EventSessionManager:
         now = time.time()
         return (now - session.last_publish_time) >= update_interval
 
-    def _publish_message(self, session: EventSession) -> None:
-        """Build and publish MQTT message"""
+    def _publish_message(self, session: EventSession) -> bool:
+        """Build and publish MQTT message. Returns True if successful."""
         mqtt_config = self._get_mqtt_config()
         if not mqtt_config.enabled or not mqtt_config.topic:
-            return
+            return True  # Config disabled is not a failure, allow cleanup
 
         message = self._build_mqtt_message(session)
-        self._mqtt_publisher.publish(mqtt_config.topic, message)
+        return self._mqtt_publisher.publish(mqtt_config.topic, message)
+
+    # ── Persistence helpers ──
+
+    def _persist_session(self, session: EventSession) -> None:
+        """Persist session to database for crash recovery"""
+        if not self._session_repo:
+            return
+        try:
+            self._session_repo.save({
+                "event_id": session.event_id,
+                "camera_id": session.camera_id,
+                "camera_name": session.camera_name,
+                "event_type": session.event_type,
+                "status": session.status,
+                "created_at": session.created_at,
+                "last_update_time": session.last_update_time,
+                "resolve_threshold": session.resolve_threshold,
+                "latest_event_data": session.latest_event_data,
+                "track_ids": list(session.track_ids),
+            })
+        except Exception as e:
+            logger.error(f"Failed to persist session {session.event_id}: {e}")
+
+    def _delete_persisted_session(self, event_id: str) -> None:
+        """Remove session from persistence after resolved is sent"""
+        if not self._session_repo:
+            return
+        try:
+            self._session_repo.delete(event_id)
+        except Exception as e:
+            logger.error(f"Failed to delete persisted session {event_id}: {e}")
+
+    # ── MQTT message building ──
 
     def _build_mqtt_message(self, session: EventSession) -> dict:
         """Build MQTT JSON message body"""

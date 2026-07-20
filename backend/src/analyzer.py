@@ -104,6 +104,9 @@ class CameraAnalyzer:
         self._running = False
         if self._thread:
             self._thread.join(timeout=5)
+        # Force resolve remaining MQTT sessions for this camera
+        if self._event_session_mgr:
+            self._event_session_mgr.force_resolve_camera(self.camera_id)
         logger.info(f"[{self.camera_id}] Analyzer stopped")
 
     def get_frame(self) -> Optional[np.ndarray]:
