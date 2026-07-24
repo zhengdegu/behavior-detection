@@ -33,10 +33,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 # ── PyTorch（最后安装，强制覆盖 ultralytics 拉的默认版）──
 ARG BUILD_TYPE=cpu
 RUN if [ "$BUILD_TYPE" = "gpu" ]; then \
-      pip install --no-cache-dir --force-reinstall torch torchvision --index-url https://download.pytorch.org/whl/cu128 && \
-      pip install --no-cache-dir tensorrt-cu12; \
+      pip install --no-cache-dir --force-reinstall torch torchvision --index-url https://download.pytorch.org/whl/cu128; \
     else \
       pip install --no-cache-dir --force-reinstall torch torchvision --index-url https://download.pytorch.org/whl/cpu; \
+    fi
+
+# ── TensorRT（仅 GPU 构建，单独安装避免磁盘溢出）──
+RUN if [ "$BUILD_TYPE" = "gpu" ]; then \
+      pip install --no-cache-dir tensorrt-cu12 --no-deps && \
+      pip install --no-cache-dir tensorrt-cu12-bindings tensorrt-cu12-libs; \
     fi
 
 # ── 应用代码 ──
