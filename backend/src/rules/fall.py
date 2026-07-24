@@ -34,7 +34,8 @@ class FallRule(BaseAnomalyRule):
                  spine_angle_threshold: float = 45.0,
                  inactivity_frames: int = 3,
                  inactivity_threshold: float = 15.0,
-                 history_size: int = 10):
+                 history_size: int = 10,
+                 static_fall_frames: int = 10):
         """
         Args:
             ratio_threshold: bbox w/h ratio threshold for dynamic detection
@@ -49,6 +50,8 @@ class FallRule(BaseAnomalyRule):
             inactivity_frames: frames of inactivity after fall to confirm
             inactivity_threshold: max movement (px) to be considered inactive
             history_size: number of frames to keep in pose history buffer
+            static_fall_frames: frames person must be lying (ratio>threshold)
+                                + inactive to trigger static fall detection
         """
         super().__init__("fall", confirm_frames, cooldown)
         self.ratio_threshold = ratio_threshold
@@ -59,6 +62,7 @@ class FallRule(BaseAnomalyRule):
         self.inactivity_frames = inactivity_frames
         self.inactivity_threshold = inactivity_threshold
         self.history_size = history_size
+        self.static_fall_frames = static_fall_frames
 
         # Per-track state
         self._prev_ratios: Dict[int, float] = {}
@@ -69,6 +73,8 @@ class FallRule(BaseAnomalyRule):
         self._falling_detected: Dict[int, float] = {}  # track_id -> timestamp
         # Inactivity counter after falling detected
         self._inactivity_count: Dict[int, int] = {}
+        # Static lying counter: consecutive frames with wide ratio + inactive
+        self._static_lying_count: Dict[int, int] = {}
 
     def _get_hip_center(self, kp) -> Optional[tuple]:
         """Get hip center from keypoints."""
@@ -239,6 +245,7 @@ class FallRule(BaseAnomalyRule):
                 self._pose_history.pop(tid, None)
                 self._falling_detected.pop(tid, None)
                 self._inactivity_count.pop(tid, None)
+                self._static_lying_count.pop(tid, None)
 
         for det in person_dets:
             x1, y1, x2, y2 = det.bbox
@@ -364,6 +371,26 @@ class FallRule(BaseAnomalyRule):
                         if hip_velocity > self.min_hip_velocity * 0.5:
                             self._falling_detected[tid] = now
                             self._inactivity_count[tid] = 0
+
+            # --- Path D: Static fall (person already lying + inactive) ---
+            # Catches cases where the fall transition was missed but person
+            # is clearly lying on the ground (wide bbox + not moving).
+            if not is_fall and tid not in self._falling_detected:
+                is_inactive = self._check_inactivity(tid, det.center)
+                if ratio > self.ratio_threshold and is_inactive:
+                    self._static_lying_count[tid] = \
+                        self._static_lying_count.get(tid, 0) + 1
+                else:
+                    self._static_lying_count[tid] = 0
+
+                if self._static_lying_count.get(tid, 0) >= self.static_fall_frames:
+                    is_fall = True
+                    detail = (f"Static fall: person lying (ratio={ratio:.2f}) "
+                              f"and inactive for {self._static_lying_count[tid]} frames")
+                    self._static_lying_count[tid] = 0
+                    logger.debug(
+                        f"[Fall-Static] cam={camera_id} track={tid} "
+                        f"ratio={ratio:.2f}")
 
             # Use confirm_frames + cooldown for final event emission
             key = f"fall_{tid}"
