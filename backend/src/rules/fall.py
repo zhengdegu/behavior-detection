@@ -281,28 +281,32 @@ class FallRule(BaseAnomalyRule):
                 if det.keypoints is not None:
                     pose_fallen = self._pose_is_fallen(det.keypoints)
 
+                # Bbox-based fallen check: wide aspect ratio = lying down
+                bbox_fallen = ratio > self.ratio_threshold
+
                 is_inactive = self._check_inactivity(tid, det.center)
 
-                if pose_fallen and is_inactive:
+                if (pose_fallen or bbox_fallen) and is_inactive:
                     # Confirmed fall: rapid descent + sustained fallen posture
                     is_fall = True
-                    detail = (f"Fall confirmed: rapid descent detected, "
-                              f"sustained fallen posture for "
-                              f"{self._inactivity_count.get(tid, 0)} frames")
+                    detail = (f"Fall confirmed: sustained fallen posture for "
+                              f"{self._inactivity_count.get(tid, 0)} frames"
+                              f" (bbox_ratio={ratio:.2f})")
                     # Clear falling state after confirmation
                     del self._falling_detected[tid]
                     self._inactivity_count.pop(tid, None)
-                elif not pose_fallen:
+                elif not pose_fallen and not bbox_fallen:
                     # Person recovered (stood back up) — false alarm
                     del self._falling_detected[tid]
                     self._inactivity_count.pop(tid, None)
                 elif now - self._falling_detected[tid] > 5.0:
                     # Timeout: if still in fallen posture after 5s but moving,
                     # still confirm (person may be struggling)
-                    if pose_fallen:
+                    if pose_fallen or bbox_fallen:
                         is_fall = True
                         detail = (f"Fall confirmed: sustained fallen posture "
-                                  f"for >5s after rapid descent")
+                                  f"for >5s after rapid descent"
+                                  f" (bbox_ratio={ratio:.2f})")
                         del self._falling_detected[tid]
                         self._inactivity_count.pop(tid, None)
                     else:
@@ -310,43 +314,51 @@ class FallRule(BaseAnomalyRule):
                         self._inactivity_count.pop(tid, None)
 
             # --- Stage 1: Detect rapid falling transition ---
-            elif det.keypoints is not None and prev_center is not None:
-                pose_fallen = self._pose_is_fallen(det.keypoints)
-                was_upright = self._was_recently_upright(tid)
+            elif prev_center is not None and prev_ratio is not None:
+                # Pose-based detection (when keypoints available)
+                pose_fallen = False
+                was_upright = False
+                if det.keypoints is not None:
+                    pose_fallen = self._pose_is_fallen(det.keypoints)
+                    was_upright = self._was_recently_upright(tid)
 
-                if pose_fallen and was_upright:
-                    # Check velocity: was the transition fast?
+                # Bbox-based detection (always available)
+                ratio_change = ratio - prev_ratio
+                y_drop = det.center[1] - prev_center[1]
+
+                # --- Path A: Pose-based (original logic) ---
+                if det.keypoints is not None and pose_fallen and was_upright:
                     hip_velocity = 0.0
                     if hip_y is not None:
                         hip_velocity = self._compute_hip_velocity(tid, hip_y)
 
-                    # Check bbox ratio change
-                    ratio_change = (ratio - prev_ratio) if prev_ratio else 0.0
-                    y_drop = det.center[1] - prev_center[1]
-
-                    # Condition: fast descent OR significant bbox change
                     fast_descent = hip_velocity > self.min_hip_velocity
                     bbox_change = (ratio > self.ratio_threshold
                                    and ratio_change > self.min_ratio_change
                                    and y_drop > self.min_y_drop)
 
                     if fast_descent or bbox_change:
-                        # Enter Stage 2: wait for inactivity confirmation
                         self._falling_detected[tid] = now
                         self._inactivity_count[tid] = 0
                         logger.debug(
-                            f"[Fall-Stage1] cam={camera_id} track={tid} "
+                            f"[Fall-Stage1-Pose] cam={camera_id} track={tid} "
                             f"hip_vel={hip_velocity:.1f} ratio_chg="
                             f"{ratio_change:.2f} y_drop={y_drop:.0f}")
 
-                elif not pose_fallen and not was_upright:
-                    # Person was not upright and is not in fallen pose
-                    # (e.g., bending) — do nothing
-                    pass
+                # --- Path B: Bbox-only (no pose required) ---
+                elif (ratio > self.ratio_threshold
+                      and ratio_change > self.min_ratio_change
+                      and y_drop > self.min_y_drop):
+                    # Rapid bbox change from tall to wide + downward movement
+                    self._falling_detected[tid] = now
+                    self._inactivity_count[tid] = 0
+                    logger.debug(
+                        f"[Fall-Stage1-Bbox] cam={camera_id} track={tid} "
+                        f"ratio={ratio:.2f} ratio_chg={ratio_change:.2f} "
+                        f"y_drop={y_drop:.0f}")
 
+                # --- Path C: Static lying (wide bbox + was upright) ---
                 elif ratio > 1.3 and was_upright:
-                    # Static lying detection: very wide bbox + was upright
-                    # Also requires velocity check
                     if hip_y is not None:
                         hip_velocity = self._compute_hip_velocity(tid, hip_y)
                         if hip_velocity > self.min_hip_velocity * 0.5:
