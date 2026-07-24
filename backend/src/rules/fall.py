@@ -288,8 +288,9 @@ class FallRule(BaseAnomalyRule):
                 if det.keypoints is not None:
                     pose_fallen = self._pose_is_fallen(det.keypoints)
 
-                # Bbox-based fallen check: wide aspect ratio = lying down
-                bbox_fallen = ratio > self.ratio_threshold
+                # Bbox-based fallen check: non-standing ratio = lying down
+                # Standing person has ratio 0.3-0.5; fallen > 0.7
+                bbox_fallen = ratio > 0.7
 
                 is_inactive = self._check_inactivity(tid, det.center)
 
@@ -353,16 +354,20 @@ class FallRule(BaseAnomalyRule):
                             f"{ratio_change:.2f} y_drop={y_drop:.0f}")
 
                 # --- Path B: Bbox-only (no pose required) ---
-                elif (ratio > self.ratio_threshold
-                      and ratio_change > self.min_ratio_change
-                      and y_drop > self.min_y_drop):
-                    # Rapid bbox change from tall to wide + downward movement
+                # Detect fall by: ratio significantly increased (person went
+                # from tall/narrow standing bbox to squarer/wider fallen bbox)
+                # OR bbox height dropped significantly (person collapsed)
+                elif (ratio_change > self.min_ratio_change
+                      and ratio > 0.7
+                      and prev_ratio is not None
+                      and prev_ratio < 0.65):
+                    # Person was standing (ratio<0.65) and now is fallen (ratio>0.7)
                     self._falling_detected[tid] = now
                     self._inactivity_count[tid] = 0
                     logger.debug(
                         f"[Fall-Stage1-Bbox] cam={camera_id} track={tid} "
-                        f"ratio={ratio:.2f} ratio_chg={ratio_change:.2f} "
-                        f"y_drop={y_drop:.0f}")
+                        f"ratio={ratio:.2f} prev_ratio={prev_ratio:.2f} "
+                        f"ratio_chg={ratio_change:.2f}")
 
                 # --- Path C: Static lying (wide bbox + was upright) ---
                 elif ratio > 1.3 and was_upright:
@@ -374,10 +379,11 @@ class FallRule(BaseAnomalyRule):
 
             # --- Path D: Static fall (person already lying + inactive) ---
             # Catches cases where the fall transition was missed but person
-            # is clearly lying on the ground (wide bbox + not moving).
+            # is clearly lying on the ground (non-standing bbox ratio + not moving).
+            # Standing ratio is typically 0.3-0.5; fallen is > 0.7 (any direction)
             if not is_fall and tid not in self._falling_detected:
                 is_inactive = self._check_inactivity(tid, det.center)
-                if ratio > self.ratio_threshold and is_inactive:
+                if ratio > 0.7 and is_inactive:
                     self._static_lying_count[tid] = \
                         self._static_lying_count.get(tid, 0) + 1
                 else:
