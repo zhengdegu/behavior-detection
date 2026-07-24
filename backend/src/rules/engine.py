@@ -44,7 +44,8 @@ class BehaviorEngine:
                 "cooldown": crowd_cfg.get("cooldown", 60),
             }
             zones = crowd_cfg.get("zones") or []
-            if zones:
+            zones_enabled = crowd_cfg.get("zones_enabled", False)
+            if zones_enabled and zones:
                 for z in zones:
                     zone = ZoneConfig(**z) if isinstance(z, dict) else z
                     effective = merge_zone_params(zone, crowd_defaults)
@@ -71,7 +72,8 @@ class BehaviorEngine:
                 "joint_overlap_threshold": fight_cfg.get("joint_overlap_threshold", 2),
             }
             zones = fight_cfg.get("zones") or []
-            if zones:
+            zones_enabled = fight_cfg.get("zones_enabled", False)
+            if zones_enabled and zones:
                 for z in zones:
                     zone = ZoneConfig(**z) if isinstance(z, dict) else z
                     effective = merge_zone_params(zone, fight_defaults)
@@ -99,7 +101,8 @@ class BehaviorEngine:
                 "history_size": fall_cfg.get("history_size", 10),
             }
             zones = fall_cfg.get("zones") or []
-            if zones:
+            zones_enabled = fall_cfg.get("zones_enabled", False)
+            if zones_enabled and zones:
                 for z in zones:
                     zone = ZoneConfig(**z) if isinstance(z, dict) else z
                     effective = merge_zone_params(zone, fall_defaults)
@@ -125,7 +128,8 @@ class BehaviorEngine:
                 "cooldown": loiter_cfg.get("cooldown", 90.0),
             }
             zones = loiter_cfg.get("zones") or []
-            if zones:
+            zones_enabled = loiter_cfg.get("zones_enabled", False)
+            if zones_enabled and zones:
                 for z in zones:
                     zone = ZoneConfig(**z) if isinstance(z, dict) else z
                     effective = merge_zone_params(zone, loiter_defaults)

@@ -304,16 +304,20 @@ function extractDefaults(ruleConfig: object): Record<string, number> {
 
 function ZoneListSection({
   zones,
+  zonesEnabled,
   ruleType,
   defaults,
   cameraId,
   onChange,
+  onToggle,
 }: {
   zones: ZoneConfig[]
+  zonesEnabled: boolean
   ruleType: 'crowd' | 'fight' | 'fall' | 'loiter'
   defaults: Record<string, number>
   cameraId: string
   onChange: (zones: ZoneConfig[]) => void
+  onToggle: (enabled: boolean) => void
 }) {
   // Stable keys: assign monotonically increasing IDs to zones
   const keyCounterRef = useRef(0)
@@ -345,31 +349,52 @@ function ZoneListSection({
 
   return (
     <div className="mt-3 pt-3 border-t border-border/50">
-      <div className="text-[10px] text-t3 font-semibold uppercase tracking-wide mb-2">
-        Zones
-      </div>
-      <div className="space-y-2">
-        {zones.map((zone, idx) => (
-          <ZoneCard
-            key={keysRef.current[idx] ?? idx}
-            index={idx}
-            zone={zone}
-            ruleType={ruleType}
-            defaults={defaults}
-            cameraId={cameraId}
-            onChange={(z) => handleZoneChange(idx, z)}
-            onDelete={() => handleZoneDelete(idx)}
+      <div className="flex items-center gap-2 mb-2">
+        <div className="text-[10px] text-t3 font-semibold uppercase tracking-wide">
+          Zones
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={zonesEnabled}
+          aria-label="Toggle zones detection"
+          onClick={() => onToggle(!zonesEnabled)}
+          className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors duration-200 cursor-pointer ${zonesEnabled ? 'bg-green' : 'bg-border'}`}
+        >
+          <span
+            className={`inline-block h-3 w-3 rounded-full bg-white shadow-sm transition-transform duration-200 ${zonesEnabled ? 'translate-x-3.5' : 'translate-x-0.5'}`}
           />
-        ))}
+        </button>
+        <span className="text-[9px] text-t3">
+          {zonesEnabled ? 'Zone detection' : 'Full-frame detection'}
+        </span>
       </div>
-      <button
-        type="button"
-        onClick={handleAddZone}
-        className="flex items-center gap-1 mt-2 text-[10px] text-green hover:text-green/80 cursor-pointer transition-colors duration-150"
-      >
-        <Plus size={10} />
-        添加 Zone
-      </button>
+      {zonesEnabled && (
+        <>
+          <div className="space-y-2">
+            {zones.map((zone, idx) => (
+              <ZoneCard
+                key={keysRef.current[idx] ?? idx}
+                index={idx}
+                zone={zone}
+                ruleType={ruleType}
+                defaults={defaults}
+                cameraId={cameraId}
+                onChange={(z) => handleZoneChange(idx, z)}
+                onDelete={() => handleZoneDelete(idx)}
+              />
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={handleAddZone}
+            className="flex items-center gap-1 mt-2 text-[10px] text-green hover:text-green/80 cursor-pointer transition-colors duration-150"
+          >
+            <Plus size={10} />
+            添加 Zone
+          </button>
+        </>
+      )}
     </div>
   )
 }
@@ -456,10 +481,12 @@ export default function RuleForm({ rules, onChange, cameraId }: RuleFormProps) {
             {cameraId && (
               <ZoneListSection
                 zones={rules.crowd.zones ?? []}
+                zonesEnabled={rules.crowd.zones_enabled ?? false}
                 ruleType="crowd"
                 defaults={extractDefaults(rules.crowd)}
                 cameraId={cameraId}
                 onChange={(zones) => update('crowd', { zones })}
+                onToggle={(zones_enabled) => update('crowd', { zones_enabled })}
               />
             )}
           </div>
@@ -547,10 +574,12 @@ export default function RuleForm({ rules, onChange, cameraId }: RuleFormProps) {
             {cameraId && (
               <ZoneListSection
                 zones={rules.fight.zones ?? []}
+                zonesEnabled={rules.fight.zones_enabled ?? false}
                 ruleType="fight"
                 defaults={extractDefaults(rules.fight)}
                 cameraId={cameraId}
                 onChange={(zones) => update('fight', { zones })}
+                onToggle={(zones_enabled) => update('fight', { zones_enabled })}
               />
             )}
           </div>
@@ -646,10 +675,12 @@ export default function RuleForm({ rules, onChange, cameraId }: RuleFormProps) {
             {cameraId && (
               <ZoneListSection
                 zones={rules.fall.zones ?? []}
+                zonesEnabled={rules.fall.zones_enabled ?? false}
                 ruleType="fall"
                 defaults={extractDefaults(rules.fall)}
                 cameraId={cameraId}
                 onChange={(zones) => update('fall', { zones })}
+                onToggle={(zones_enabled) => update('fall', { zones_enabled })}
               />
             )}
           </div>
@@ -732,10 +763,12 @@ export default function RuleForm({ rules, onChange, cameraId }: RuleFormProps) {
             {cameraId && (
               <ZoneListSection
                 zones={rules.loiter.zones ?? []}
+                zonesEnabled={rules.loiter.zones_enabled ?? false}
                 ruleType="loiter"
                 defaults={extractDefaults(rules.loiter)}
                 cameraId={cameraId}
                 onChange={(zones) => update('loiter', { zones })}
+                onToggle={(zones_enabled) => update('loiter', { zones_enabled })}
               />
             )}
           </div>

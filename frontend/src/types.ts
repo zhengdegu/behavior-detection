@@ -72,8 +72,9 @@ export interface CrowdConfig {
   confirm_frames: number;
   cooldown: number;
   roi?: MultiRoi;
-  schedule?: ScheduleConfig;
+  zones_enabled?: boolean;
   zones?: ZoneConfig[];
+  schedule?: ScheduleConfig;
 }
 
 export interface FightConfig {
@@ -88,8 +89,9 @@ export interface FightConfig {
   min_distance_variance?: number;
   joint_overlap_threshold?: number;
   roi?: MultiRoi;
-  schedule?: ScheduleConfig;
+  zones_enabled?: boolean;
   zones?: ZoneConfig[];
+  schedule?: ScheduleConfig;
 }
 
 export interface FallConfig {
@@ -105,8 +107,9 @@ export interface FallConfig {
   inactivity_threshold?: number;
   history_size?: number;
   roi?: MultiRoi;
-  schedule?: ScheduleConfig;
+  zones_enabled?: boolean;
   zones?: ZoneConfig[];
+  schedule?: ScheduleConfig;
 }
 
 export interface LoiterConfig {
@@ -120,8 +123,9 @@ export interface LoiterConfig {
   confirm_frames: number;
   cooldown: number;
   roi?: MultiRoi;
-  schedule?: ScheduleConfig;
+  zones_enabled?: boolean;
   zones?: ZoneConfig[];
+  schedule?: ScheduleConfig;
 }
 
 export interface RulesConfig {

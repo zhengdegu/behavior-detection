@@ -73,6 +73,7 @@ class CrowdConfig(BaseModel):
     confirm_frames: int = 8
     cooldown: float = 60
     roi: list = Field(default_factory=list)
+    zones_enabled: bool = False  # Zone 总开关：开启=区域检测，关闭=全屏检测
     zones: List[ZoneConfig] = Field(default_factory=list)
     schedule: ScheduleConfig = ScheduleConfig()
 
@@ -89,6 +90,7 @@ class FightConfig(BaseModel):
     min_distance_variance: float = 18.0  # px², below this = stable distance
     joint_overlap_threshold: int = 2
     roi: list = Field(default_factory=list)
+    zones_enabled: bool = False  # Zone 总开关：开启=区域检测，关闭=全屏检测
     zones: List[ZoneConfig] = Field(default_factory=list)
     schedule: ScheduleConfig = ScheduleConfig()
 
@@ -106,6 +108,7 @@ class FallConfig(BaseModel):
     inactivity_threshold: float = 12.0  # max movement (px) to count as inactive
     history_size: int = 10  # pose history buffer size
     roi: list = Field(default_factory=list)
+    zones_enabled: bool = False  # Zone 总开关：开启=区域检测，关闭=全屏检测
     zones: List[ZoneConfig] = Field(default_factory=list)
     schedule: ScheduleConfig = ScheduleConfig()
 
@@ -121,6 +124,7 @@ class LoiterConfig(BaseModel):
     confirm_frames: int = 5
     cooldown: float = 90.0
     roi: list = Field(default_factory=list)
+    zones_enabled: bool = False  # Zone 总开关：开启=区域检测，关闭=全屏检测
     zones: List[ZoneConfig] = Field(default_factory=list)
     schedule: ScheduleConfig = ScheduleConfig()
 
