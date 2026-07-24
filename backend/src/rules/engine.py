@@ -174,11 +174,14 @@ class BehaviorEngine:
     def update(self, detections: List[Detection],
                camera_id: str = "",
                frame_ts: float = 0.0,
-               skip_rules: set = None) -> List[Dict[str, Any]]:
+               skip_rules: set = None,
+               frame_size: tuple = None) -> List[Dict[str, Any]]:
         """Run all rules, return anomaly event list.
         
         Args:
             skip_rules: set of rule_name strings to skip (schedule-based)
+            frame_size: (height, width) of the frame, used to normalize foot
+                        coordinates for ROI comparison (ROI stored as 0~1).
         """
         all_events = []
         for rule in self.rules:
@@ -189,8 +192,17 @@ class BehaviorEngine:
             # Per-rule ROI filtering: rule.multi_roi > global self.roi > no filter
             effective_roi = rule.multi_roi if rule.multi_roi else self.roi
             if effective_roi:
-                filtered = [d for d in detections
-                            if d.track_id < 0 or point_in_any_polygon(d.foot, effective_roi)]
+                if frame_size:
+                    fh, fw = frame_size
+                    filtered = [
+                        d for d in detections
+                        if d.track_id < 0 or point_in_any_polygon(
+                            (d.foot[0] / fw, d.foot[1] / fh), effective_roi)
+                    ]
+                else:
+                    # Fallback: compare directly (legacy pixel-coord ROI)
+                    filtered = [d for d in detections
+                                if d.track_id < 0 or point_in_any_polygon(d.foot, effective_roi)]
             else:
                 filtered = detections
 

@@ -1062,7 +1062,8 @@ def _run_video_analysis(task_id: str):
                     stats["max_confidence"] = d.confidence
 
             # Behavior detection
-            events = engine.update(detections, camera_id=f"video_{task_id}", frame_ts=frame_ts)
+            events = engine.update(detections, camera_id=f"video_{task_id}", frame_ts=frame_ts,
+                                   frame_size=frame.shape[:2])
             for evt in events:
                 evt["timestamp"] = frame_ts
                 evt["frame_index"] = frame_idx

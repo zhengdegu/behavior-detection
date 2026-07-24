@@ -318,7 +318,8 @@ class CameraAnalyzer:
         skip_rules = self._get_skipped_rules_by_schedule(now)
 
         events = self._engine.update(detections, self.camera_id, frame_ts=now,
-                                     skip_rules=skip_rules)
+                                     skip_rules=skip_rules,
+                                     frame_size=frame.shape[:2])
 
         # Store raw frame (unannotated) for snapshot API
         with self._frame_lock:
