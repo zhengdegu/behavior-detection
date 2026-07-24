@@ -61,15 +61,15 @@ class BehaviorEngine:
         fight_cfg = config.get("fight") or {}
         if fight_cfg.get("enabled", False):
             fight_defaults = {
-                "proximity_radius": fight_cfg.get("proximity_radius", 180),
-                "min_speed": fight_cfg.get("min_speed", 120),
+                "proximity_radius": fight_cfg.get("proximity_radius", 200),
+                "min_speed": fight_cfg.get("min_speed", 45),
                 "min_persons": fight_cfg.get("min_persons", 2),
-                "confirm_frames": fight_cfg.get("confirm_frames", 8),
+                "confirm_frames": fight_cfg.get("confirm_frames", 3),
                 "cooldown": fight_cfg.get("cooldown", 30),
-                "co_move_cos_threshold": fight_cfg.get("co_move_cos_threshold", 0.7),
-                "min_relative_speed": fight_cfg.get("min_relative_speed", 55.0),
-                "min_distance_variance": fight_cfg.get("min_distance_variance", 18.0),
-                "joint_overlap_threshold": fight_cfg.get("joint_overlap_threshold", 2),
+                "co_move_cos_threshold": fight_cfg.get("co_move_cos_threshold", 0.8),
+                "min_relative_speed": fight_cfg.get("min_relative_speed", 30.0),
+                "min_distance_variance": fight_cfg.get("min_distance_variance", 6.0),
+                "joint_overlap_threshold": fight_cfg.get("joint_overlap_threshold", 1),
             }
             zones = fight_cfg.get("zones") or []
             zones_enabled = fight_cfg.get("zones_enabled", False)
@@ -89,16 +89,16 @@ class BehaviorEngine:
         fall_cfg = config.get("fall") or {}
         if fall_cfg.get("enabled", False):
             fall_defaults = {
-                "ratio_threshold": fall_cfg.get("ratio_threshold", 1.2),
-                "min_ratio_change": fall_cfg.get("min_ratio_change", 0.4),
-                "min_y_drop": fall_cfg.get("min_y_drop", 12),
+                "ratio_threshold": fall_cfg.get("ratio_threshold", 0.9),
+                "min_ratio_change": fall_cfg.get("min_ratio_change", 0.2),
+                "min_y_drop": fall_cfg.get("min_y_drop", 5),
                 "confirm_frames": fall_cfg.get("confirm_frames", 2),
                 "cooldown": fall_cfg.get("cooldown", 30),
-                "min_hip_velocity": fall_cfg.get("min_hip_velocity", 20.0),
-                "spine_angle_threshold": fall_cfg.get("spine_angle_threshold", 45.0),
-                "inactivity_frames": fall_cfg.get("inactivity_frames", 3),
-                "inactivity_threshold": fall_cfg.get("inactivity_threshold", 12.0),
-                "history_size": fall_cfg.get("history_size", 10),
+                "min_hip_velocity": fall_cfg.get("min_hip_velocity", 8.0),
+                "spine_angle_threshold": fall_cfg.get("spine_angle_threshold", 55.0),
+                "inactivity_frames": fall_cfg.get("inactivity_frames", 2),
+                "inactivity_threshold": fall_cfg.get("inactivity_threshold", 8.0),
+                "history_size": fall_cfg.get("history_size", 15),
             }
             zones = fall_cfg.get("zones") or []
             zones_enabled = fall_cfg.get("zones_enabled", False)

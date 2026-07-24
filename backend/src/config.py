@@ -80,15 +80,15 @@ class CrowdConfig(BaseModel):
 
 class FightConfig(BaseModel):
     enabled: bool = False
-    proximity_radius: float = 180
-    min_speed: float = 120  # based on production configs with Pose model
+    proximity_radius: float = 200
+    min_speed: float = 45
     min_persons: int = 2
-    confirm_frames: int = 8
+    confirm_frames: int = 3
     cooldown: float = 30
-    co_move_cos_threshold: float = 0.7
-    min_relative_speed: float = 55.0  # px/s, below this = not adversarial
-    min_distance_variance: float = 18.0  # px², below this = stable distance
-    joint_overlap_threshold: int = 2
+    co_move_cos_threshold: float = 0.8
+    min_relative_speed: float = 30.0
+    min_distance_variance: float = 6.0
+    joint_overlap_threshold: int = 1
     roi: list = Field(default_factory=list)
     zones_enabled: bool = False  # Zone 总开关：开启=区域检测，关闭=全屏检测
     zones: List[ZoneConfig] = Field(default_factory=list)
@@ -97,16 +97,16 @@ class FightConfig(BaseModel):
 
 class FallConfig(BaseModel):
     enabled: bool = False
-    ratio_threshold: float = 1.2
-    min_ratio_change: float = 0.4
-    min_y_drop: float = 12
+    ratio_threshold: float = 0.9
+    min_ratio_change: float = 0.2
+    min_y_drop: float = 5
     confirm_frames: int = 2
     cooldown: float = 30
-    min_hip_velocity: float = 20.0  # min hip drop speed (px/frame)
-    spine_angle_threshold: float = 45.0  # angle (deg) below which person is upright
-    inactivity_frames: int = 3  # frames of stillness after fall to confirm
-    inactivity_threshold: float = 12.0  # max movement (px) to count as inactive
-    history_size: int = 10  # pose history buffer size
+    min_hip_velocity: float = 8.0
+    spine_angle_threshold: float = 55.0
+    inactivity_frames: int = 2
+    inactivity_threshold: float = 8.0
+    history_size: int = 15
     roi: list = Field(default_factory=list)
     zones_enabled: bool = False  # Zone 总开关：开启=区域检测，关闭=全屏检测
     zones: List[ZoneConfig] = Field(default_factory=list)
