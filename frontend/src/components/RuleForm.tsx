@@ -652,6 +652,24 @@ export default function RuleForm({ rules, onChange, cameraId }: RuleFormProps) {
                 onChange={(v) => update('fall', { history_size: v })}
               />
               <Field
+                label="static_fall_frames"
+                value={rules.fall.static_fall_frames ?? 10}
+                onChange={(v) => update('fall', { static_fall_frames: v })}
+              />
+              <Field
+                label="lying_ratio_threshold"
+                value={rules.fall.lying_ratio_threshold ?? 0.6}
+                step={0.01}
+                onChange={(v) => update('fall', { lying_ratio_threshold: v })}
+              />
+              <Field
+                label="torso_horizontal_threshold"
+                value={rules.fall.torso_horizontal_threshold ?? 65}
+                unit="°"
+                step={1}
+                onChange={(v) => update('fall', { torso_horizontal_threshold: v })}
+              />
+              <Field
                 label="confirm_frames"
                 value={rules.fall.confirm_frames}
                 onChange={(v) => update('fall', { confirm_frames: v })}

@@ -54,6 +54,9 @@ export interface ZoneConfig {
   inactivity_frames?: number;
   inactivity_threshold?: number;
   history_size?: number;
+  static_fall_frames?: number;
+  lying_ratio_threshold?: number;
+  torso_horizontal_threshold?: number;
   // Loiter 参数
   min_duration?: number;
   max_distance?: number;
@@ -106,6 +109,9 @@ export interface FallConfig {
   inactivity_frames?: number;
   inactivity_threshold?: number;
   history_size?: number;
+  static_fall_frames?: number;
+  lying_ratio_threshold?: number;
+  torso_horizontal_threshold?: number;
   roi?: MultiRoi;
   zones_enabled?: boolean;
   zones?: ZoneConfig[];

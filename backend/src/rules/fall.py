@@ -7,6 +7,11 @@ References:
   - OpenPose fall detection (hip velocity + body angle + aspect ratio)
   - Dual-Channel Feature Integration (falling-state + fallen-state)
   - Two-Stage Fall Recognition (deflection angle + spine ratio)
+
+Enhanced for top-down camera views:
+  - Torso horizontal angle detection (works regardless of head/hip Y relationship)
+  - Lower lying ratio threshold for overhead angles
+  - Pose-based static lying detection
 """
 
 import time
@@ -35,7 +40,10 @@ class FallRule(BaseAnomalyRule):
                  inactivity_frames: int = 3,
                  inactivity_threshold: float = 15.0,
                  history_size: int = 10,
-                 static_fall_frames: int = 10):
+                 static_fall_frames: int = 10,
+                 # New parameters for top-down camera support
+                 lying_ratio_threshold: float = 0.6,
+                 torso_horizontal_threshold: float = 65.0):
         """
         Args:
             ratio_threshold: bbox w/h ratio threshold for dynamic detection
@@ -52,6 +60,10 @@ class FallRule(BaseAnomalyRule):
             history_size: number of frames to keep in pose history buffer
             static_fall_frames: frames person must be lying (ratio>threshold)
                                 + inactive to trigger static fall detection
+            lying_ratio_threshold: lower bbox w/h ratio for static lying
+                                   detection (for top-down cameras)
+            torso_horizontal_threshold: torso angle (degrees from horizontal)
+                                        below which person is considered lying
         """
         super().__init__("fall", confirm_frames, cooldown)
         self.ratio_threshold = ratio_threshold
@@ -63,6 +75,8 @@ class FallRule(BaseAnomalyRule):
         self.inactivity_threshold = inactivity_threshold
         self.history_size = history_size
         self.static_fall_frames = static_fall_frames
+        self.lying_ratio_threshold = lying_ratio_threshold
+        self.torso_horizontal_threshold = torso_horizontal_threshold
 
         # Per-track state
         self._prev_ratios: Dict[int, float] = {}
@@ -75,6 +89,8 @@ class FallRule(BaseAnomalyRule):
         self._inactivity_count: Dict[int, int] = {}
         # Static lying counter: consecutive frames with wide ratio + inactive
         self._static_lying_count: Dict[int, int] = {}
+        # Pose-based lying counter (for top-down cameras)
+        self._pose_lying_count: Dict[int, int] = {}
 
     def _get_hip_center(self, kp) -> Optional[tuple]:
         """Get hip center from keypoints."""
@@ -175,6 +191,70 @@ class FallRule(BaseAnomalyRule):
 
         return self._inactivity_count.get(track_id, 0) >= self.inactivity_frames
 
+    def _get_torso_horizontal_angle(self, kp) -> Optional[float]:
+        """
+        Calculate torso angle from horizontal plane (degrees).
+        Uses shoulder-hip line. Returns 0° when lying flat, 90° when standing.
+        This works better for top-down camera views than head/hip Y comparison.
+        """
+        shoulder_pts = []
+        for idx in [5, 6]:  # left_shoulder, right_shoulder
+            if kp[idx][2] > 0.3:
+                shoulder_pts.append(kp[idx][:2])
+        hip_pts = []
+        for idx in [11, 12]:
+            if kp[idx][2] > 0.3:
+                hip_pts.append(kp[idx][:2])
+
+        if not shoulder_pts or not hip_pts:
+            return None
+
+        shoulder_center = (np.mean([p[0] for p in shoulder_pts]),
+                          np.mean([p[1] for p in shoulder_pts]))
+        hip_center = (np.mean([p[0] for p in hip_pts]),
+                     np.mean([p[1] for p in hip_pts]))
+
+        dx = abs(shoulder_center[0] - hip_center[0])
+        dy = abs(shoulder_center[1] - hip_center[1])
+
+        if dx < 1e-6 and dy < 1e-6:
+            return 90.0  # No movement, assume standing
+
+        # Angle from horizontal: 0° = horizontal (lying), 90° = vertical (standing)
+        angle = np.degrees(np.arctan2(dy, dx))
+        return float(angle)
+
+    def _get_body_extension(self, kp) -> Optional[float]:
+        """
+        Calculate body extension ratio for top-down view.
+        Measures how "spread out" the body is by comparing limb distances.
+        Higher values indicate lying posture.
+        """
+        # Get available keypoints
+        points = {}
+        keypoint_names = {
+            0: 'nose', 5: 'l_shoulder', 6: 'r_shoulder',
+            11: 'l_hip', 12: 'r_hip', 15: 'l_ankle', 16: 'r_ankle',
+            9: 'l_wrist', 10: 'r_wrist'
+        }
+        for idx, name in keypoint_names.items():
+            if kp[idx][2] > 0.3:
+                points[name] = kp[idx][:2]
+
+        if len(points) < 4:
+            return None
+
+        # Calculate bounding box of all visible keypoints
+        xs = [p[0] for p in points.values()]
+        ys = [p[1] for p in points.values()]
+        width = max(xs) - min(xs)
+        height = max(ys) - min(ys)
+
+        if height < 1e-6:
+            return 999.0  # Very horizontal
+
+        return width / height
+
     @staticmethod
     def _pose_is_fallen(kp) -> bool:
         """
@@ -216,6 +296,23 @@ class FallRule(BaseAnomalyRule):
 
         return False
 
+    def _pose_is_lying_topdown(self, kp) -> bool:
+        """
+        Determine if person is lying down for top-down camera view.
+        Uses torso horizontal angle and body extension ratio.
+        """
+        # Check torso horizontal angle
+        torso_angle = self._get_torso_horizontal_angle(kp)
+        if torso_angle is not None and torso_angle < self.torso_horizontal_threshold:
+            return True
+
+        # Check body extension (spread out limbs)
+        extension = self._get_body_extension(kp)
+        if extension is not None and extension > 1.2:
+            return True
+
+        return False
+
     def _was_recently_upright(self, track_id: int) -> bool:
         """Check if person was upright in recent history."""
         history = self._pose_history.get(track_id)
@@ -226,6 +323,14 @@ class FallRule(BaseAnomalyRule):
             if angle is not None and angle < self.spine_angle_threshold:
                 return True
         return False
+
+    def _clear_fall_candidate(self, track_id: int) -> None:
+        """Clear transient state after recovery or a confirmed event."""
+        self._falling_detected.pop(track_id, None)
+        self._inactivity_count.pop(track_id, None)
+        self._static_lying_count.pop(track_id, None)
+        self._pose_lying_count.pop(track_id, None)
+        self._confirm_count.pop(f"fall_{track_id}", None)
 
     def update(self, detections: List[Detection],
                camera_id: str = "",
@@ -243,9 +348,7 @@ class FallRule(BaseAnomalyRule):
                 self._prev_ratios.pop(tid, None)
                 self._prev_centers.pop(tid, None)
                 self._pose_history.pop(tid, None)
-                self._falling_detected.pop(tid, None)
-                self._inactivity_count.pop(tid, None)
-                self._static_lying_count.pop(tid, None)
+                self._clear_fall_candidate(tid)
 
         for det in person_dets:
             x1, y1, x2, y2 = det.bbox
@@ -273,8 +376,6 @@ class FallRule(BaseAnomalyRule):
 
             prev_ratio = self._prev_ratios.get(tid)
             prev_center = self._prev_centers.get(tid)
-            self._prev_ratios[tid] = ratio
-            self._prev_centers[tid] = det.center
 
             # === Two-Stage Fall Detection ===
 
@@ -300,13 +401,9 @@ class FallRule(BaseAnomalyRule):
                     detail = (f"Fall confirmed: sustained fallen posture for "
                               f"{self._inactivity_count.get(tid, 0)} frames"
                               f" (bbox_ratio={ratio:.2f})")
-                    # Clear falling state after confirmation
-                    del self._falling_detected[tid]
-                    self._inactivity_count.pop(tid, None)
                 elif not pose_fallen and not bbox_fallen:
                     # Person recovered (stood back up) — false alarm
-                    del self._falling_detected[tid]
-                    self._inactivity_count.pop(tid, None)
+                    self._clear_fall_candidate(tid)
                 elif now - self._falling_detected[tid] > 5.0:
                     # Timeout: if still in fallen posture after 5s but moving,
                     # still confirm (person may be struggling)
@@ -315,11 +412,8 @@ class FallRule(BaseAnomalyRule):
                         detail = (f"Fall confirmed: sustained fallen posture "
                                   f"for >5s after rapid descent"
                                   f" (bbox_ratio={ratio:.2f})")
-                        del self._falling_detected[tid]
-                        self._inactivity_count.pop(tid, None)
                     else:
-                        del self._falling_detected[tid]
-                        self._inactivity_count.pop(tid, None)
+                        self._clear_fall_candidate(tid)
 
             # --- Stage 1: Detect rapid falling transition ---
             elif prev_center is not None and prev_ratio is not None:
@@ -381,22 +475,51 @@ class FallRule(BaseAnomalyRule):
             # Catches cases where the fall transition was missed but person
             # is clearly lying on the ground (non-standing bbox ratio + not moving).
             # Standing ratio is typically 0.3-0.5; fallen is > 0.7 (any direction)
+            # Enhanced: also detect via Pose for top-down cameras
             if not is_fall and tid not in self._falling_detected:
                 is_inactive = self._check_inactivity(tid, det.center)
-                if ratio > 0.7 and is_inactive:
+
+                # Method 1: Bbox-based (original)
+                if ratio > self.lying_ratio_threshold and is_inactive:
                     self._static_lying_count[tid] = \
                         self._static_lying_count.get(tid, 0) + 1
                 else:
                     self._static_lying_count[tid] = 0
 
-                if self._static_lying_count.get(tid, 0) >= self.static_fall_frames:
+                # Method 2: Pose-based for top-down cameras
+                pose_lying = False
+                if det.keypoints is not None:
+                    pose_lying = self._pose_is_lying_topdown(det.keypoints)
+
+                if pose_lying and is_inactive:
+                    self._pose_lying_count[tid] = \
+                        self._pose_lying_count.get(tid, 0) + 1
+                else:
+                    self._pose_lying_count[tid] = 0
+
+                # Trigger if either method reaches threshold
+                bbox_static_triggered = (
+                    self._static_lying_count.get(tid, 0) >= self.static_fall_frames
+                )
+                pose_static_triggered = (
+                    self._pose_lying_count.get(tid, 0) >= self.static_fall_frames
+                )
+
+                if bbox_static_triggered or pose_static_triggered:
                     is_fall = True
-                    detail = (f"Static fall: person lying (ratio={ratio:.2f}) "
-                              f"and inactive for {self._static_lying_count[tid]} frames")
-                    self._static_lying_count[tid] = 0
+                    if pose_static_triggered and not bbox_static_triggered:
+                        torso_angle = self._get_torso_horizontal_angle(det.keypoints) if det.keypoints is not None else None
+                        torso_detail = (f"{torso_angle:.1f}° from horizontal"
+                                        if torso_angle is not None else "unavailable")
+                        detail = (f"Static fall (pose): person lying "
+                                  f"(torso_angle={torso_detail}) "
+                                  f"and inactive for {self._pose_lying_count.get(tid, 0)} frames")
+                    else:
+                        detail = (f"Static fall: person lying (ratio={ratio:.2f}) "
+                                  f"and inactive for {self._static_lying_count.get(tid, 0)} frames")
                     logger.debug(
                         f"[Fall-Static] cam={camera_id} track={tid} "
-                        f"ratio={ratio:.2f}")
+                        f"ratio={ratio:.2f} pose_lying={pose_lying}")
 
             # Use confirm_frames + cooldown for final event emission
             key = f"fall_{tid}"
@@ -414,5 +537,11 @@ class FallRule(BaseAnomalyRule):
                 })
                 logger.info(f"[Fall] cam={camera_id} track={tid} "
                             f"detail={detail}")
+                self._clear_fall_candidate(tid)
+
+            # Keep the previous-frame values intact until all movement checks
+            # for the current frame have completed.
+            self._prev_ratios[tid] = ratio
+            self._prev_centers[tid] = det.center
 
         return events
