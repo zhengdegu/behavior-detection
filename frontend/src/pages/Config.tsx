@@ -40,6 +40,11 @@ const DEFAULT_RULES: RulesConfig = {
     inactivity_frames: 2,
     inactivity_threshold: 8,
     history_size: 15,
+    static_fall_frames: 10,
+    lying_ratio_threshold: 1.0,
+    torso_horizontal_threshold: 35,
+    min_area_change: 0.35,
+    candidate_timeout: 3,
   },
   loiter: {
     enabled: false,

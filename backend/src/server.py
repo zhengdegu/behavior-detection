@@ -1024,8 +1024,12 @@ def _run_video_analysis(task_id: str):
                       "confirm_frames": 3, "cooldown": 10},
             "fight": {"enabled": True, "proximity_radius": 300, "min_speed": 15,
                       "min_persons": 2, "confirm_frames": 1, "cooldown": 5},
-            "fall": {"enabled": True, "ratio_threshold": 0.6, "min_ratio_change": 0.15,
-                     "min_y_drop": 5, "confirm_frames": 1, "cooldown": 5},
+            "fall": {"enabled": True, "ratio_threshold": 0.9, "min_ratio_change": 0.2,
+                     "min_y_drop": 5, "confirm_frames": 2, "cooldown": 5,
+                     "inactivity_frames": 2, "inactivity_threshold": 8,
+                     "static_fall_frames": 10, "lying_ratio_threshold": 1.0,
+                     "torso_horizontal_threshold": 35, "min_area_change": 0.35,
+                     "candidate_timeout": 3},
         }
         engine = BehaviorEngine(rules_cfg, roi=roi if roi else None)
         logger.info(f"[VideoAnalysis] Task {task_id} rules config: {rules_cfg}")

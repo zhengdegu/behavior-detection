@@ -57,6 +57,8 @@ export interface ZoneConfig {
   static_fall_frames?: number;
   lying_ratio_threshold?: number;
   torso_horizontal_threshold?: number;
+  min_area_change?: number;
+  candidate_timeout?: number;
   // Loiter 参数
   min_duration?: number;
   max_distance?: number;
@@ -112,6 +114,8 @@ export interface FallConfig {
   static_fall_frames?: number;
   lying_ratio_threshold?: number;
   torso_horizontal_threshold?: number;
+  min_area_change?: number;
+  candidate_timeout?: number;
   roi?: MultiRoi;
   zones_enabled?: boolean;
   zones?: ZoneConfig[];

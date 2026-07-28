@@ -9,9 +9,9 @@ References:
   - Two-Stage Fall Recognition (deflection angle + spine ratio)
 
 Enhanced for top-down camera views:
-  - Torso horizontal angle detection (works regardless of head/hip Y relationship)
-  - Lower lying ratio threshold for overhead angles
-  - Pose-based static lying detection
+  - Combined torso angle + body extension evidence
+  - Configurable bbox area-change evidence
+  - Moving-candidate rejection to reduce walking false positives
 """
 
 import time
@@ -29,21 +29,21 @@ logger = logging.getLogger(__name__)
 
 class FallRule(BaseAnomalyRule):
 
-    def __init__(self, ratio_threshold: float = 1.0,
-                 min_ratio_change: float = 0.5,
-                 min_y_drop: float = 20.0,
-                 confirm_frames: int = 5,
+    def __init__(self, ratio_threshold: float = 0.9,
+                 min_ratio_change: float = 0.2,
+                 min_y_drop: float = 5.0,
+                 confirm_frames: int = 2,
                  cooldown: float = 30.0,
-                 # New parameters for enhanced detection
-                 min_hip_velocity: float = 30.0,
-                 spine_angle_threshold: float = 45.0,
-                 inactivity_frames: int = 3,
-                 inactivity_threshold: float = 15.0,
-                 history_size: int = 10,
+                 min_hip_velocity: float = 8.0,
+                 spine_angle_threshold: float = 55.0,
+                 inactivity_frames: int = 2,
+                 inactivity_threshold: float = 8.0,
+                 history_size: int = 15,
                  static_fall_frames: int = 10,
-                 # New parameters for top-down camera support
-                 lying_ratio_threshold: float = 0.6,
-                 torso_horizontal_threshold: float = 65.0):
+                 lying_ratio_threshold: float = 1.0,
+                 torso_horizontal_threshold: float = 35.0,
+                 min_area_change: float = 0.35,
+                 candidate_timeout: float = 3.0):
         """
         Args:
             ratio_threshold: bbox w/h ratio threshold for dynamic detection
@@ -64,6 +64,10 @@ class FallRule(BaseAnomalyRule):
                                    detection (for top-down cameras)
             torso_horizontal_threshold: torso angle (degrees from horizontal)
                                         below which person is considered lying
+            min_area_change: minimum relative bbox area increase required by
+                             bbox-only dynamic detection
+            candidate_timeout: seconds before an unconfirmed moving fall
+                               candidate is discarded
         """
         super().__init__("fall", confirm_frames, cooldown)
         self.ratio_threshold = ratio_threshold
@@ -77,10 +81,13 @@ class FallRule(BaseAnomalyRule):
         self.static_fall_frames = static_fall_frames
         self.lying_ratio_threshold = lying_ratio_threshold
         self.torso_horizontal_threshold = torso_horizontal_threshold
+        self.min_area_change = min_area_change
+        self.candidate_timeout = candidate_timeout
 
         # Per-track state
         self._prev_ratios: Dict[int, float] = {}
         self._prev_centers: Dict[int, tuple] = {}
+        self._prev_areas: Dict[int, float] = {}
         # Pose history buffer: stores (hip_center_y, spine_angle, timestamp)
         self._pose_history: Dict[int, deque] = {}
         # Two-stage state: tracks that passed Stage 1 (falling detected)
@@ -301,17 +308,15 @@ class FallRule(BaseAnomalyRule):
         Determine if person is lying down for top-down camera view.
         Uses torso horizontal angle and body extension ratio.
         """
-        # Check torso horizontal angle
         torso_angle = self._get_torso_horizontal_angle(kp)
-        if torso_angle is not None and torso_angle < self.torso_horizontal_threshold:
-            return True
-
-        # Check body extension (spread out limbs)
         extension = self._get_body_extension(kp)
-        if extension is not None and extension > 1.2:
-            return True
 
-        return False
+        # A top-view standing person can also have a horizontal-looking torso.
+        # Require both torso orientation and an extended body shape.
+        return (torso_angle is not None
+                and torso_angle < self.torso_horizontal_threshold
+                and extension is not None
+                and extension > 1.2)
 
     def _was_recently_upright(self, track_id: int) -> bool:
         """Check if person was upright in recent history."""
@@ -347,6 +352,7 @@ class FallRule(BaseAnomalyRule):
             if tid not in active_ids:
                 self._prev_ratios.pop(tid, None)
                 self._prev_centers.pop(tid, None)
+                self._prev_areas.pop(tid, None)
                 self._pose_history.pop(tid, None)
                 self._clear_fall_candidate(tid)
 
@@ -357,6 +363,7 @@ class FallRule(BaseAnomalyRule):
             if h <= 0:
                 continue
             ratio = w / h
+            area = w * h
             tid = det.track_id
 
             # Initialize pose history buffer
@@ -376,6 +383,7 @@ class FallRule(BaseAnomalyRule):
 
             prev_ratio = self._prev_ratios.get(tid)
             prev_center = self._prev_centers.get(tid)
+            prev_area = self._prev_areas.get(tid)
 
             # === Two-Stage Fall Detection ===
 
@@ -389,9 +397,7 @@ class FallRule(BaseAnomalyRule):
                 if det.keypoints is not None:
                     pose_fallen = self._pose_is_fallen(det.keypoints)
 
-                # Bbox-based fallen check: non-standing ratio = lying down
-                # Standing person has ratio 0.3-0.5; fallen > 0.7
-                bbox_fallen = ratio > 0.7
+                bbox_fallen = ratio > self.ratio_threshold
 
                 is_inactive = self._check_inactivity(tid, det.center)
 
@@ -404,16 +410,13 @@ class FallRule(BaseAnomalyRule):
                 elif not pose_fallen and not bbox_fallen:
                     # Person recovered (stood back up) — false alarm
                     self._clear_fall_candidate(tid)
-                elif now - self._falling_detected[tid] > 5.0:
-                    # Timeout: if still in fallen posture after 5s but moving,
-                    # still confirm (person may be struggling)
-                    if pose_fallen or bbox_fallen:
-                        is_fall = True
-                        detail = (f"Fall confirmed: sustained fallen posture "
-                                  f"for >5s after rapid descent"
-                                  f" (bbox_ratio={ratio:.2f})")
-                    else:
-                        self._clear_fall_candidate(tid)
+                elif now - self._falling_detected[tid] > self.candidate_timeout:
+                    # A person who keeps moving is not a confirmed fall. This
+                    # rejects walking/turning boxes that briefly become square.
+                    logger.debug(
+                        f"[Fall-Rejected-Moving] cam={camera_id} track={tid} "
+                        f"ratio={ratio:.2f} timeout={self.candidate_timeout:.1f}s")
+                    self._clear_fall_candidate(tid)
 
             # --- Stage 1: Detect rapid falling transition ---
             elif prev_center is not None and prev_ratio is not None:
@@ -427,6 +430,9 @@ class FallRule(BaseAnomalyRule):
                 # Bbox-based detection (always available)
                 ratio_change = ratio - prev_ratio
                 y_drop = det.center[1] - prev_center[1]
+                area_change = 0.0
+                if prev_area is not None and prev_area > 0:
+                    area_change = (area - prev_area) / prev_area
 
                 # --- Path A: Pose-based (original logic) ---
                 if det.keypoints is not None and pose_fallen and was_upright:
@@ -437,7 +443,8 @@ class FallRule(BaseAnomalyRule):
                     fast_descent = hip_velocity > self.min_hip_velocity
                     bbox_change = (ratio > self.ratio_threshold
                                    and ratio_change > self.min_ratio_change
-                                   and y_drop > self.min_y_drop)
+                                   and y_drop > self.min_y_drop
+                                   and area_change > self.min_area_change)
 
                     if fast_descent or bbox_change:
                         self._falling_detected[tid] = now
@@ -445,23 +452,25 @@ class FallRule(BaseAnomalyRule):
                         logger.debug(
                             f"[Fall-Stage1-Pose] cam={camera_id} track={tid} "
                             f"hip_vel={hip_velocity:.1f} ratio_chg="
-                            f"{ratio_change:.2f} y_drop={y_drop:.0f}")
+                            f"{ratio_change:.2f} area_chg={area_change:.2f} "
+                            f"y_drop={y_drop:.0f}")
 
                 # --- Path B: Bbox-only (no pose required) ---
                 # Detect fall by: ratio significantly increased (person went
                 # from tall/narrow standing bbox to squarer/wider fallen bbox)
                 # OR bbox height dropped significantly (person collapsed)
                 elif (ratio_change > self.min_ratio_change
-                      and ratio > 0.7
-                      and prev_ratio is not None
-                      and prev_ratio < 0.65):
-                    # Person was standing (ratio<0.65) and now is fallen (ratio>0.7)
+                      and ratio > self.ratio_threshold
+                      and prev_ratio < self.ratio_threshold
+                      and y_drop > self.min_y_drop
+                      and area_change > self.min_area_change):
                     self._falling_detected[tid] = now
                     self._inactivity_count[tid] = 0
                     logger.debug(
                         f"[Fall-Stage1-Bbox] cam={camera_id} track={tid} "
                         f"ratio={ratio:.2f} prev_ratio={prev_ratio:.2f} "
-                        f"ratio_chg={ratio_change:.2f}")
+                        f"ratio_chg={ratio_change:.2f} "
+                        f"area_chg={area_change:.2f} y_drop={y_drop:.0f}")
 
                 # --- Path C: Static lying (wide bbox + was upright) ---
                 elif ratio > 1.3 and was_upright:
@@ -473,14 +482,15 @@ class FallRule(BaseAnomalyRule):
 
             # --- Path D: Static fall (person already lying + inactive) ---
             # Catches cases where the fall transition was missed but person
-            # is clearly lying on the ground (non-standing bbox ratio + not moving).
-            # Standing ratio is typically 0.3-0.5; fallen is > 0.7 (any direction)
-            # Enhanced: also detect via Pose for top-down cameras
+            # is clearly lying on the ground (wide bbox + not moving).
+            # Keep a safety floor for legacy configs whose 0.6 threshold also
+            # classifies square-ish standing boxes as lying.
             if not is_fall and tid not in self._falling_detected:
                 is_inactive = self._check_inactivity(tid, det.center)
 
                 # Method 1: Bbox-based (original)
-                if ratio > self.lying_ratio_threshold and is_inactive:
+                static_ratio_threshold = max(self.lying_ratio_threshold, 1.0)
+                if ratio > static_ratio_threshold and is_inactive:
                     self._static_lying_count[tid] = \
                         self._static_lying_count.get(tid, 0) + 1
                 else:
@@ -543,5 +553,6 @@ class FallRule(BaseAnomalyRule):
             # for the current frame have completed.
             self._prev_ratios[tid] = ratio
             self._prev_centers[tid] = det.center
+            self._prev_areas[tid] = area
 
         return events

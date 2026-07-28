@@ -49,6 +49,11 @@ const RULE_PARAMS: Record<string, ParamDef[]> = {
     { key: 'inactivity_frames', label: 'inactivity_frames' },
     { key: 'inactivity_threshold', label: 'inactivity_threshold', unit: 'px' },
     { key: 'history_size', label: 'history_size' },
+    { key: 'static_fall_frames', label: 'static_fall_frames' },
+    { key: 'lying_ratio_threshold', label: 'lying_ratio_threshold', step: 0.01 },
+    { key: 'torso_horizontal_threshold', label: 'torso_horizontal_threshold', unit: '°' },
+    { key: 'min_area_change', label: 'min_area_change', step: 0.05 },
+    { key: 'candidate_timeout', label: 'candidate_timeout', unit: 's', step: 0.5 },
   ],
   loiter: [
     { key: 'min_duration', label: 'min_duration', unit: 's' },

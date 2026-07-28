@@ -57,6 +57,8 @@ class ZoneConfig(BaseModel):
     static_fall_frames: Optional[int] = Field(None, ge=1)
     lying_ratio_threshold: Optional[float] = Field(None, gt=0)
     torso_horizontal_threshold: Optional[float] = Field(None, gt=0)
+    min_area_change: Optional[float] = Field(None, ge=0)
+    candidate_timeout: Optional[float] = Field(None, gt=0)
     # Loiter 参数
     min_duration: Optional[float] = Field(None, gt=0)
     max_distance: Optional[float] = Field(None, gt=0)
@@ -111,8 +113,10 @@ class FallConfig(BaseModel):
     inactivity_threshold: float = 8.0
     history_size: int = 15
     static_fall_frames: int = 10
-    lying_ratio_threshold: float = 0.6
-    torso_horizontal_threshold: float = 65.0
+    lying_ratio_threshold: float = 1.0
+    torso_horizontal_threshold: float = 35.0
+    min_area_change: float = 0.35
+    candidate_timeout: float = 3.0
     roi: list = Field(default_factory=list)
     zones_enabled: bool = False  # Zone 总开关：开启=区域检测，关闭=全屏检测
     zones: List[ZoneConfig] = Field(default_factory=list)

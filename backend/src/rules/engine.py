@@ -100,8 +100,10 @@ class BehaviorEngine:
                 "inactivity_threshold": fall_cfg.get("inactivity_threshold", 8.0),
                 "history_size": fall_cfg.get("history_size", 15),
                 "static_fall_frames": fall_cfg.get("static_fall_frames", 10),
-                "lying_ratio_threshold": fall_cfg.get("lying_ratio_threshold", 0.6),
-                "torso_horizontal_threshold": fall_cfg.get("torso_horizontal_threshold", 65.0),
+                "lying_ratio_threshold": fall_cfg.get("lying_ratio_threshold", 1.0),
+                "torso_horizontal_threshold": fall_cfg.get("torso_horizontal_threshold", 35.0),
+                "min_area_change": fall_cfg.get("min_area_change", 0.35),
+                "candidate_timeout": fall_cfg.get("candidate_timeout", 3.0),
             }
             zones = fall_cfg.get("zones") or []
             zones_enabled = fall_cfg.get("zones_enabled", False)
