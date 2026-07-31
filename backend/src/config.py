@@ -45,6 +45,8 @@ class ZoneConfig(BaseModel):
     min_relative_speed: Optional[float] = Field(None, ge=0)
     min_distance_variance: Optional[float] = Field(None, ge=0)
     joint_overlap_threshold: Optional[int] = Field(None, ge=0)
+    normalized_proximity_threshold: Optional[float] = Field(None, gt=0)
+    secondary_speed_ratio: Optional[float] = Field(None, gt=0, le=1)
     # Fall 参数
     ratio_threshold: Optional[float] = Field(None, gt=0)
     min_ratio_change: Optional[float] = Field(None, gt=0)
@@ -94,6 +96,8 @@ class FightConfig(BaseModel):
     min_relative_speed: float = 30.0
     min_distance_variance: float = 6.0
     joint_overlap_threshold: int = 1
+    normalized_proximity_threshold: float = 1.2
+    secondary_speed_ratio: float = 0.35
     roi: list = Field(default_factory=list)
     zones_enabled: bool = False  # Zone 总开关：开启=区域检测，关闭=全屏检测
     zones: List[ZoneConfig] = Field(default_factory=list)

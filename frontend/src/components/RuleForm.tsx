@@ -556,6 +556,18 @@ export default function RuleForm({ rules, onChange, cameraId }: RuleFormProps) {
                 onChange={(v) => update('fight', { joint_overlap_threshold: v })}
               />
               <Field
+                label="body_distance_ratio"
+                value={rules.fight.normalized_proximity_threshold ?? 1.2}
+                step={0.05}
+                onChange={(v) => update('fight', { normalized_proximity_threshold: v })}
+              />
+              <Field
+                label="secondary_speed_ratio"
+                value={rules.fight.secondary_speed_ratio ?? 0.35}
+                step={0.05}
+                onChange={(v) => update('fight', { secondary_speed_ratio: v })}
+              />
+              <Field
                 label="cooldown"
                 value={rules.fight.cooldown}
                 unit="s"

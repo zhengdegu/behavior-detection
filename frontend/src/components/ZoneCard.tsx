@@ -39,6 +39,8 @@ const RULE_PARAMS: Record<string, ParamDef[]> = {
     { key: 'min_relative_speed', label: 'min_relative_speed', unit: 'px/s' },
     { key: 'min_distance_variance', label: 'min_distance_variance', unit: 'px²' },
     { key: 'joint_overlap_threshold', label: 'joint_overlap_threshold' },
+    { key: 'normalized_proximity_threshold', label: 'body_distance_ratio', step: 0.05 },
+    { key: 'secondary_speed_ratio', label: 'secondary_speed_ratio', step: 0.05 },
   ],
   fall: [
     { key: 'ratio_threshold', label: 'ratio_threshold', step: 0.01 },

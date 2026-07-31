@@ -21,6 +21,7 @@ import numpy as np
 from .camera_time import CameraTimeSync
 from .detector import YOLODetector, PoseDetector
 from .detection import Detection
+from .event_utils import extract_track_ids
 from .rules.engine import BehaviorEngine
 
 try:
@@ -469,13 +470,13 @@ class CameraAnalyzer:
                                 detections: list) -> Optional[str]:
         try:
             img = frame.copy()
+            evt_tids = set(extract_track_ids(event))
             for det in detections:
                 if det.track_id < 0:
                     continue
                 x1, y1, x2, y2 = [int(v) for v in det.bbox]
                 color = (0, 255, 0)
-                evt_tids = event.get("track_ids", [])
-                if det.track_id == event.get("track_id") or det.track_id in evt_tids:
+                if det.track_id in evt_tids:
                     color = (0, 0, 255)
                 cv2.rectangle(img, (x1, y1), (x2, y2), color, 1)
                 label = f"{det.class_name} #{det.track_id}"
@@ -507,14 +508,24 @@ class CameraAnalyzer:
 
     def _draw(self, frame: np.ndarray, detections, events) -> np.ndarray:
         img = frame.copy()
+        event_track_colors = {}
+        for event in events:
+            sub_type = event.get("sub_type", "")
+            color = {"crowd": (0, 0, 255), "fight": (0, 0, 255),
+                     "fall": (0, 165, 255), "loiter": (0, 200, 200)}.get(
+                         sub_type, (0, 0, 255))
+            for track_id in extract_track_ids(event):
+                event_track_colors[track_id] = color
+
         for det in detections:
             if det.track_id < 0:
                 continue
             x1, y1, x2, y2 = [int(v) for v in det.bbox]
-            cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 1)
+            color = event_track_colors.get(det.track_id, (0, 255, 0))
+            cv2.rectangle(img, (x1, y1), (x2, y2), color, 1)
             label = f"{det.class_name} #{det.track_id}"
             cv2.putText(img, label, (x1, y1 - 8),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
 
         for evt in events:
             sub = evt.get("sub_type", "")

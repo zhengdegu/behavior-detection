@@ -8,6 +8,14 @@ import type { DetectionEvent } from '../types'
 const PAGE_SIZE = 20
 const FILTER_TYPES = ['all', 'crowd', 'fight', 'fall', 'loiter'] as const
 
+function participantIds(event: DetectionEvent): number[] {
+  return Array.from(new Set([
+    ...(event.track_ids ?? []),
+    ...(event.involved_track_ids ?? []),
+    ...(event.track_id === undefined ? [] : [event.track_id]),
+  ])).sort((a, b) => a - b)
+}
+
 /** Gradient background class per event sub_type */
 function thumbBgClass(subType: string): string {
   switch (subType) {
@@ -190,7 +198,7 @@ export default function Events() {
                 </td>
                 {/* Track IDs */}
                 <td className="px-3.5 py-2.5 border-t border-border text-t2">
-                  {(ev.track_ids ?? []).map((id) => `#${id}`).join(',') || '—'}
+                  {participantIds(ev).map((id) => `#${id}`).join(',') || '—'}
                 </td>
               </tr>
             ))}

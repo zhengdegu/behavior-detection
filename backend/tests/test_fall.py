@@ -36,6 +36,8 @@ def test_static_fall_survives_final_confirm_frames():
 
     assert len(events) == 1
     assert events[0]["sub_type"] == "fall"
+    assert events[0]["track_id"] == 1
+    assert events[0]["track_ids"] == [1]
     assert "Static fall" in events[0]["detail"]
 
 
@@ -59,6 +61,8 @@ def test_dynamic_fall_survives_final_confirm_frames():
 
     assert len(events) == 1
     assert events[0]["sub_type"] == "fall"
+    assert events[0]["track_id"] == 1
+    assert events[0]["track_ids"] == [1]
     assert "Fall confirmed" in events[0]["detail"]
 
 

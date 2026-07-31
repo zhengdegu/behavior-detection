@@ -539,6 +539,7 @@ class FallRule(BaseAnomalyRule):
                     "sub_type": "fall",
                     "camera_id": camera_id,
                     "track_id": tid,
+                    "track_ids": [tid],
                     "class_name": "person",
                     "confidence": det.confidence,
                     "bbox": det.bbox,

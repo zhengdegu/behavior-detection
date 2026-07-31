@@ -12,6 +12,7 @@ from typing import Dict, List, Optional, Set
 
 from .config import MQTTConfig, CameraMQTTPublishConfig
 from .camera_time import CameraTimeSync
+from .event_utils import extract_track_ids
 from .mqtt_publisher import MQTTPublisher
 
 logger = logging.getLogger(__name__)
@@ -318,14 +319,7 @@ class EventSessionManager:
     @staticmethod
     def _extract_all_track_ids(event: dict) -> Set[int]:
         """Extract all track_ids from an event (including involved_track_ids for fight)"""
-        track_ids: Set[int] = set()
-        if "track_ids" in event:
-            track_ids.update(event["track_ids"])
-        if "involved_track_ids" in event:
-            track_ids.update(event["involved_track_ids"])
-        if "track_id" in event:
-            track_ids.add(event["track_id"])
-        return track_ids
+        return set(extract_track_ids(event))
 
     def _create_session(self, event: dict, camera_config: dict,
                         now: float) -> EventSession:

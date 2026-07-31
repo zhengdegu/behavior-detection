@@ -14,7 +14,7 @@ References:
 import math
 import time
 import logging
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Set
 from collections import deque
 from statistics import variance as stat_variance
 
@@ -34,7 +34,9 @@ class FightRule(BaseAnomalyRule):
                  co_move_cos_threshold: float = 0.7,
                  min_relative_speed: float = 40.0,
                  min_distance_variance: float = 10.0,
-                 joint_overlap_threshold: int = 1):
+                 joint_overlap_threshold: int = 1,
+                 normalized_proximity_threshold: float = 1.2,
+                 secondary_speed_ratio: float = 0.35):
         """
         Args:
             proximity_radius: max distance (px) to consider two people "close"
@@ -49,6 +51,10 @@ class FightRule(BaseAnomalyRule):
             min_distance_variance: min variance in inter-person distance (px²)
                                    over recent frames; low = stable = co-walking
             joint_overlap_threshold: min joint intrusions to boost fight score
+            normalized_proximity_threshold: max center distance divided by the
+                                            smaller person's bbox height
+            secondary_speed_ratio: min secondary participant speed as a ratio
+                                   of min_speed
         """
         super().__init__("fight", confirm_frames, cooldown)
         self.proximity_radius = proximity_radius
@@ -58,10 +64,12 @@ class FightRule(BaseAnomalyRule):
         self.min_relative_speed = min_relative_speed
         self.min_distance_variance = min_distance_variance
         self.joint_overlap_threshold = joint_overlap_threshold
+        self.normalized_proximity_threshold = normalized_proximity_threshold
+        self.secondary_speed_ratio = secondary_speed_ratio
 
         self._prev_positions: Dict[int, tuple] = {}
         self._prev_times: Dict[int, float] = {}
-        self._prev_wrists: Dict[int, list] = {}
+        self._prev_wrists: Dict[int, Dict[int, Tuple[float, float]]] = {}
         self._velocity_vectors: Dict[int, Tuple[float, float]] = {}
         self._pair_distances: Dict[Tuple[int, int], deque] = {}
 
@@ -84,11 +92,33 @@ class FightRule(BaseAnomalyRule):
         x1, y1, x2, y2 = det_j.bbox
         count = 0
         for idx in [7, 8, 9, 10]:  # left/right elbow, left/right wrist
+            if idx >= len(det_i.keypoints):
+                continue
             kp = det_i.keypoints[idx]
             if kp[2] > 0.3:
                 if x1 <= kp[0] <= x2 and y1 <= kp[1] <= y2:
                     count += 1
         return count
+
+    def _is_close_pair(self, det_i: Detection, det_j: Detection,
+                       distance: float) -> bool:
+        """Reject perspective-only proximity using the smaller body scale."""
+        if distance >= self.proximity_radius:
+            return False
+        height_i = max(float(det_i.bbox[3] - det_i.bbox[1]), 1.0)
+        height_j = max(float(det_j.bbox[3] - det_j.bbox[1]), 1.0)
+        normalized_distance = distance / min(height_i, height_j)
+        return normalized_distance <= self.normalized_proximity_threshold
+
+    @staticmethod
+    def _union_bbox(detections: List[Detection]) -> list:
+        """Return one bbox covering every participant."""
+        return [
+            min(det.bbox[0] for det in detections),
+            min(det.bbox[1] for det in detections),
+            max(det.bbox[2] for det in detections),
+            max(det.bbox[3] for det in detections),
+        ]
 
     def _calc_limb_speed(self, det: Detection, now: float) -> float:
         """Calculate wrist movement speed (Pose enhancement)."""
@@ -96,10 +126,12 @@ class FightRule(BaseAnomalyRule):
             return 0.0
 
         kp = det.keypoints
-        wrists = []
+        wrists = {}
         for idx in [9, 10]:  # Left and right wrists
+            if idx >= len(kp):
+                continue
             if kp[idx][2] > 0.15:
-                wrists.append((float(kp[idx][0]), float(kp[idx][1])))
+                wrists[idx] = (float(kp[idx][0]), float(kp[idx][1]))
 
         if not wrists:
             return 0.0
@@ -116,10 +148,12 @@ class FightRule(BaseAnomalyRule):
             return 0.0
 
         max_speed = 0.0
-        for w in wrists:
-            for pw in prev:
-                speed = math.dist(w, pw) / dt
-                max_speed = max(max_speed, speed)
+        for idx, wrist in wrists.items():
+            previous_wrist = prev.get(idx)
+            if previous_wrist is None:
+                continue
+            speed = math.dist(wrist, previous_wrist) / dt
+            max_speed = max(max_speed, speed)
         return max_speed
 
     def _is_co_moving(self, tid_i: int, tid_j: int) -> bool:
@@ -206,68 +240,101 @@ class FightRule(BaseAnomalyRule):
             self._confirm_count.clear()
             return events
 
-        for i, det_i in enumerate(person_dets):
-            nearby_fast = []
-            speed_i = speeds.get(det_i.track_id, 0)
-            limb_i = limb_speeds.get(det_i.track_id, 0)
-            effective_speed_i = max(speed_i, limb_i)
+        effective_speeds = {
+            det.track_id: max(speeds.get(det.track_id, 0),
+                              limb_speeds.get(det.track_id, 0))
+            for det in person_dets
+        }
+        adjacency: Dict[int, Set[int]] = {
+            det.track_id: set() for det in person_dets
+        }
 
-            for j, det_j in enumerate(person_dets):
-                if i == j:
-                    continue
+        # Evaluate each pair once so history and confirmation cannot advance
+        # twice in one frame due to traversal order.
+        for i, det_i in enumerate(person_dets):
+            for det_j in person_dets[i + 1:]:
                 dist = math.dist(det_i.center, det_j.center)
-                if dist >= self.proximity_radius:
+                if not self._is_close_pair(det_i, det_j, dist):
                     continue
+
+                overlap = (self._count_joint_overlap(det_i, det_j) +
+                           self._count_joint_overlap(det_j, det_i))
+                pose_interaction = (
+                    self.joint_overlap_threshold > 0 and
+                    overlap >= self.joint_overlap_threshold
+                )
 
                 # --- Filter 1: Co-moving detection ---
-                if self._is_co_moving(det_i.track_id, det_j.track_id):
+                if (self._is_co_moving(det_i.track_id, det_j.track_id) and
+                        not pose_interaction):
                     logger.debug(
                         f"[Fight-Filter] co-moving: track {det_i.track_id} "
                         f"& {det_j.track_id}, skipping")
                     continue
 
                 # --- Filter 2: Stable distance detection ---
-                if self._is_stable_distance(det_i.track_id,
-                                            det_j.track_id, dist):
+                stable_distance = self._is_stable_distance(
+                    det_i.track_id, det_j.track_id, dist)
+                if stable_distance and not pose_interaction:
                     logger.debug(
                         f"[Fight-Filter] stable distance: track "
                         f"{det_i.track_id} & {det_j.track_id}, skipping")
                     continue
 
                 # --- Speed check ---
-                speed_j = speeds.get(det_j.track_id, 0)
-                limb_j = limb_speeds.get(det_j.track_id, 0)
-                effective_speed_j = max(speed_j, limb_j)
+                effective_speed_i = effective_speeds[det_i.track_id]
+                effective_speed_j = effective_speeds[det_j.track_id]
+                primary_speed = max(effective_speed_i, effective_speed_j)
+                secondary_speed = min(effective_speed_i, effective_speed_j)
+                secondary_threshold = self.min_speed * self.secondary_speed_ratio
+                if pose_interaction:
+                    secondary_threshold *= 0.5
+                    logger.debug(
+                        f"[Fight-Boost] joint overlap={overlap}: "
+                        f"track {det_i.track_id} & {det_j.track_id}")
 
-                if (effective_speed_i > self.min_speed or
-                        effective_speed_j > self.min_speed):
-                    # --- Bonus: Joint overlap detection ---
-                    overlap = (self._count_joint_overlap(det_i, det_j) +
-                               self._count_joint_overlap(det_j, det_i))
-                    if overlap >= self.joint_overlap_threshold:
-                        logger.debug(
-                            f"[Fight-Boost] joint overlap={overlap}: "
-                            f"track {det_i.track_id} & {det_j.track_id}")
-                    nearby_fast.append(det_j.track_id)
+                if (primary_speed > self.min_speed and
+                        secondary_speed > secondary_threshold):
+                    adjacency[det_i.track_id].add(det_j.track_id)
+                    adjacency[det_j.track_id].add(det_i.track_id)
 
-            is_fight = (len(nearby_fast) >= (self.min_persons - 1) and
-                        effective_speed_i > self.min_speed)
-            key = f"fight_{det_i.track_id}"
+        det_by_id = {det.track_id: det for det in person_dets}
+        active_keys = set()
+        visited = set()
+        for start_id in sorted(adjacency):
+            if start_id in visited or not adjacency[start_id]:
+                continue
+            stack = [start_id]
+            involved_set = set()
+            while stack:
+                track_id = stack.pop()
+                if track_id in involved_set:
+                    continue
+                involved_set.add(track_id)
+                stack.extend(adjacency[track_id] - involved_set)
+            visited.update(involved_set)
 
-            if self._check_confirm_and_cooldown(key, is_fight, now=now):
-                involved = [det_i.track_id] + nearby_fast
-                avg_speed = sum(speeds.get(t, 0) for t in involved) / len(involved)
-                has_pose = any(limb_speeds.get(t, 0) > 0 for t in involved)
+            if len(involved_set) < self.min_persons:
+                continue
+            involved = sorted(involved_set)
+            key = "fight_" + "_".join(str(tid) for tid in involved)
+            active_keys.add(key)
+
+            if self._check_confirm_and_cooldown(key, True, now=now):
+                involved_dets = [det_by_id[tid] for tid in involved]
+                avg_speed = sum(effective_speeds[t] for t in involved) / len(involved)
+                has_pose = any(det.keypoints is not None for det in involved_dets)
                 events.append({
                     "type": "anomaly",
                     "sub_type": "fight",
                     "camera_id": camera_id,
-                    "track_id": det_i.track_id,
+                    "track_id": involved[0],
+                    "track_ids": involved,
                     "involved_track_ids": involved,
                     "class_name": "person",
                     "involved_count": len(involved),
                     "avg_speed": round(avg_speed, 1),
-                    "bbox": det_i.bbox,
+                    "bbox": self._union_bbox(involved_dets),
                     "detail": (f"Suspected fight: {len(involved)} people in "
                                f"close-range violent motion, "
                                f"avg speed {avg_speed:.0f}px/s"
@@ -276,6 +343,9 @@ class FightRule(BaseAnomalyRule):
                 })
                 logger.info(f"[Fight] cam={camera_id} involved={len(involved)} "
                             f"speed={avg_speed:.0f}")
-                break
+
+        for key in list(self._confirm_count):
+            if key.startswith("fight_") and key not in active_keys:
+                self._confirm_count[key] = 0
 
         return events

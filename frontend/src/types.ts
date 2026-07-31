@@ -45,6 +45,8 @@ export interface ZoneConfig {
   min_relative_speed?: number;
   min_distance_variance?: number;
   joint_overlap_threshold?: number;
+  normalized_proximity_threshold?: number;
+  secondary_speed_ratio?: number;
   // Fall 参数
   ratio_threshold?: number;
   min_ratio_change?: number;
@@ -93,6 +95,8 @@ export interface FightConfig {
   min_relative_speed?: number;
   min_distance_variance?: number;
   joint_overlap_threshold?: number;
+  normalized_proximity_threshold?: number;
+  secondary_speed_ratio?: number;
   roi?: MultiRoi;
   zones_enabled?: boolean;
   zones?: ZoneConfig[];
@@ -184,8 +188,10 @@ export interface DetectionEvent {
   timestamp: string | number;
   detail: string;
   track_ids: number[];
+  track_id?: number;
+  involved_track_ids?: number[];
   image?: string;
-  bbox?: number[][];
+  bbox?: number[];
 }
 
 // ── System Status ──

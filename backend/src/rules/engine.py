@@ -70,6 +70,9 @@ class BehaviorEngine:
                 "min_relative_speed": fight_cfg.get("min_relative_speed", 30.0),
                 "min_distance_variance": fight_cfg.get("min_distance_variance", 6.0),
                 "joint_overlap_threshold": fight_cfg.get("joint_overlap_threshold", 1),
+                "normalized_proximity_threshold": fight_cfg.get(
+                    "normalized_proximity_threshold", 1.2),
+                "secondary_speed_ratio": fight_cfg.get("secondary_speed_ratio", 0.35),
             }
             zones = fight_cfg.get("zones") or []
             zones_enabled = fight_cfg.get("zones_enabled", False)

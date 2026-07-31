@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from .config import CameraConfig, DetectConfig, ModelConfig, RulesConfig, MQTTConfig, CameraMQTTPublishConfig, Go2RTCConfig
+from .event_utils import extract_track_ids
 
 logger = logging.getLogger(__name__)
 
@@ -730,6 +731,7 @@ class EventRepository:
         """Persist a detection event to database"""
         conn = self.db.get_connection()
         now = datetime.now(timezone.utc).isoformat()
+        track_ids = extract_track_ids(event)
         conn.execute(
             "INSERT INTO detection_events "
             "(event_type, sub_type, camera_id, camera_name, timestamp, detail, "
@@ -742,7 +744,7 @@ class EventRepository:
                 event.get("camera_name", ""),
                 event.get("timestamp", 0.0),
                 event.get("detail", ""),
-                json.dumps(event.get("track_ids", [])),
+                json.dumps(track_ids),
                 event.get("image"),
                 json.dumps(event.get("bbox")) if event.get("bbox") else None,
                 json.dumps({k: v for k, v in event.items()

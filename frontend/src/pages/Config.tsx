@@ -27,6 +27,8 @@ const DEFAULT_RULES: RulesConfig = {
     min_relative_speed: 30,
     min_distance_variance: 6,
     joint_overlap_threshold: 1,
+    normalized_proximity_threshold: 1.2,
+    secondary_speed_ratio: 0.35,
   },
   fall: {
     enabled: true,
